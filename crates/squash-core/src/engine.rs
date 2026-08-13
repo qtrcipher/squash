@@ -232,15 +232,16 @@ mod tests {
     }
 
     #[test]
-    fn unsupported_format_fails_fast() {
+    fn missing_input_fails_the_job() {
         let engine = Engine::new();
-        // gz has no handler yet (later task).
+        // Every registered format gets as far as the handler; a missing
+        // input surfaces as an io-class failure, not a panic or a hang.
         let handle = engine.submit(Job::extract(
-            vec![PathBuf::from("x.gz")],
+            vec![PathBuf::from("/definitely/not/here.gz")],
             PathBuf::from("out"),
             Format::Gz,
         ));
-        assert_eq!(handle.wait(), Err(SquashError::UnsupportedFormat));
+        assert!(handle.wait().is_err());
     }
 
     #[test]

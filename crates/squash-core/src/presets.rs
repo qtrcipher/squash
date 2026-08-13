@@ -4,7 +4,9 @@
 //! not code paths**: one table maps (format, preset) → codec parameters.
 //! Adding a format adds rows here; nothing else changes.
 //!
-//! Level bounds per docs/06 §2: zip `1–9`, 7z `0–9`, tar.gz `1–9`, tar.zst `1–22`.
+//! Level bounds per docs/06 §2: zip `1–9`, 7z `0–9`, tar.gz `1–9`, tar.zst
+//! `1–22`. The single-file codecs reuse the same codec bounds — gz `1–9`,
+//! xz `0–9`, zst `1–22` — pinned here and in docs/06 §2 with the handlers.
 
 use crate::format::Format;
 use serde::{Deserialize, Serialize};
@@ -76,6 +78,16 @@ pub const PRESET_TABLE: &[PresetRow] = &[
     row(Format::TarZst, Preset::Fast, 3),
     row(Format::TarZst, Preset::Balanced, 7),
     row(Format::TarZst, Preset::Max, 19),
+    // Single-file codecs mirror their tar-family counterparts.
+    row(Format::Gz, Preset::Fast, 1),
+    row(Format::Gz, Preset::Balanced, 6),
+    row(Format::Gz, Preset::Max, 9),
+    row(Format::Xz, Preset::Fast, 1),
+    row(Format::Xz, Preset::Balanced, 6),
+    row(Format::Xz, Preset::Max, 9),
+    row(Format::Zst, Preset::Fast, 3),
+    row(Format::Zst, Preset::Balanced, 7),
+    row(Format::Zst, Preset::Max, 19),
 ];
 
 /// Look up the parameters for a (format, preset) pair.
@@ -93,6 +105,9 @@ pub fn level_bounds(format: Format) -> Option<(u8, u8)> {
         Format::SevenZ => Some((0, 9)),
         Format::TarGz => Some((1, 9)),
         Format::TarZst => Some((1, 22)),
+        Format::Gz => Some((1, 9)),
+        Format::Xz => Some((0, 9)),
+        Format::Zst => Some((1, 22)),
         _ => None,
     }
 }
@@ -149,6 +164,12 @@ mod tests {
     fn documented_anchors() {
         // docs/05 §3: "fast tar.zst = zstd level 3".
         assert_eq!(params(Format::TarZst, Preset::Fast).unwrap().level, 3);
+        // Single-file codecs mirror their tar-family counterparts.
+        assert_eq!(params(Format::Gz, Preset::Fast).unwrap().level, 1);
+        assert_eq!(params(Format::Gz, Preset::Max).unwrap().level, 9);
+        assert_eq!(params(Format::Xz, Preset::Balanced).unwrap().level, 6);
+        assert_eq!(params(Format::Zst, Preset::Fast).unwrap().level, 3);
+        assert_eq!(params(Format::Zst, Preset::Max).unwrap().level, 19);
     }
 
     #[test]

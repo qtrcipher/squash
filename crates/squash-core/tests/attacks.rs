@@ -307,3 +307,122 @@ fn failed_compress_leaves_no_partial_output() {
     ));
     assert!(!dest.exists());
 }
+
+// --- single-file codecs (gz / xz / zst) --------------------------------------
+
+/// A valid `.zst` produced by the handler, for truncation fixtures.
+fn valid_zst(path: &Path) {
+    let tmp_src = path.with_extension("raw");
+    fs::write(&tmp_src, b"single-file payload, soon to be truncated").unwrap();
+    engine()
+        .submit(Job::compress(
+            vec![tmp_src.clone()],
+            path.to_path_buf(),
+            Format::Zst,
+            squash_core::Preset::Balanced,
+        ))
+        .wait()
+        .unwrap();
+    fs::remove_file(&tmp_src).unwrap();
+}
+
+#[test]
+fn corrupt_gz_reports_corrupt_archive() {
+    let tmp = tempfile::tempdir().unwrap();
+    let archive = tmp.path().join("broken.gz");
+    // Valid gzip magic + header, garbage payload.
+    fs::write(
+        &archive,
+        b"\x1f\x8b\x08\x00\x00\x00\x00\x00\x00\xffgarbage-garbage-garbage",
+    )
+    .unwrap();
+
+    let err = engine()
+        .submit(Job::extract(
+            vec![archive],
+            tmp.path().join("dest"),
+            Format::Gz,
+        ))
+        .wait()
+        .unwrap_err();
+    assert_eq!(err, SquashError::CorruptArchive);
+}
+
+#[test]
+fn corrupt_xz_reports_corrupt_archive() {
+    let tmp = tempfile::tempdir().unwrap();
+    let archive = tmp.path().join("broken.xz");
+    // Valid xz stream magic, garbage where the block header should be.
+    fs::write(&archive, b"\xfd7zXZ\x00not-a-real-xz-stream-at-all").unwrap();
+
+    let err = engine()
+        .submit(Job::extract(
+            vec![archive],
+            tmp.path().join("dest"),
+            Format::Xz,
+        ))
+        .wait()
+        .unwrap_err();
+    assert_eq!(err, SquashError::CorruptArchive);
+}
+
+#[test]
+fn corrupt_zst_reports_corrupt_archive() {
+    let tmp = tempfile::tempdir().unwrap();
+    let archive = tmp.path().join("broken.zst");
+    fs::write(&archive, b"\x28\xb5\x2f\xfdnot-a-real-zstd-frame").unwrap();
+
+    let err = engine()
+        .submit(Job::extract(
+            vec![archive],
+            tmp.path().join("dest"),
+            Format::Zst,
+        ))
+        .wait()
+        .unwrap_err();
+    assert_eq!(err, SquashError::CorruptArchive);
+}
+
+#[test]
+fn truncated_zst_reports_corrupt_archive() {
+    let tmp = tempfile::tempdir().unwrap();
+    let archive = tmp.path().join("truncated.zst");
+    valid_zst(&archive);
+    let bytes = fs::read(&archive).unwrap();
+    fs::write(&archive, &bytes[..bytes.len() / 2]).unwrap();
+
+    let err = engine()
+        .submit(Job::extract(
+            vec![archive],
+            tmp.path().join("dest"),
+            Format::Zst,
+        ))
+        .wait()
+        .unwrap_err();
+    assert_eq!(err, SquashError::CorruptArchive);
+}
+
+#[test]
+fn truncated_gz_reports_corrupt_archive() {
+    let tmp = tempfile::tempdir().unwrap();
+    let archive = tmp.path().join("truncated.gz");
+    {
+        let file = fs::File::create(&archive).unwrap();
+        let mut enc = flate2::write::GzEncoder::new(file, flate2::Compression::new(6));
+        enc.write_all(b"single-file payload, soon to be truncated")
+            .unwrap();
+        enc.finish().unwrap();
+    }
+    let bytes = fs::read(&archive).unwrap();
+    fs::write(&archive, &bytes[..bytes.len() / 2]).unwrap();
+
+    let err = engine()
+        .submit(Job::extract(
+            vec![archive],
+            tmp.path().join("dest"),
+            Format::Gz,
+        ))
+        .wait()
+        .unwrap_err();
+    assert_eq!(err, SquashError::CorruptArchive);
+}

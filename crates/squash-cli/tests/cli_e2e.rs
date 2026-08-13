@@ -223,3 +223,123 @@ fn extract_default_destination_is_archive_folder() {
         .success();
     assert!(tmp.path().join("data/hello.txt").exists());
 }
+
+// --- single-file codecs (gz / xz / zst) --------------------------------------
+
+#[test]
+fn single_file_zst_roundtrip() {
+    let tmp = tempfile::tempdir().unwrap();
+    let content: Vec<u8> = (0..50_000u32).map(|i| (i % 253) as u8).collect();
+    fs::write(tmp.path().join("big.log"), &content).unwrap();
+
+    // Default output: <name>.<ext> next to the input.
+    squash()
+        .args(["c", "big.log", "-f", "zst"])
+        .current_dir(tmp.path())
+        .assert()
+        .success()
+        .stdout(predicates::str::contains("big.log.zst —"));
+    assert!(tmp.path().join("big.log.zst").exists());
+
+    let dest = tmp.path().join("dest");
+    squash()
+        .args(["x", "big.log.zst", "-o"])
+        .arg(&dest)
+        .current_dir(tmp.path())
+        .assert()
+        .success()
+        .stdout(predicates::str::contains("extracted to"));
+    // One codec extension stripped; no folder created.
+    assert_eq!(fs::read(dest.join("big.log")).unwrap(), content);
+}
+
+#[test]
+fn single_file_compress_rejects_directory_with_hint() {
+    let tmp = tempfile::tempdir().unwrap();
+    build_tree(tmp.path());
+    squash()
+        .args(["c", "data", "-f", "gz"])
+        .current_dir(tmp.path())
+        .assert()
+        .code(2)
+        .stderr(predicates::str::contains(
+            "gz compresses a single file — use tar.gz or tar.zst for directories",
+        ));
+    assert!(!tmp.path().join("data.gz").exists());
+}
+
+#[test]
+fn single_file_multiple_inputs_write_one_output_per_input() {
+    let tmp = tempfile::tempdir().unwrap();
+    fs::write(tmp.path().join("a.txt"), b"aaa").unwrap();
+    fs::write(tmp.path().join("b.txt"), b"bbb").unwrap();
+
+    // docs/03 F4 default: one output per input, next to each source.
+    squash()
+        .args(["c", "a.txt", "b.txt", "-f", "gz"])
+        .current_dir(tmp.path())
+        .assert()
+        .success();
+    assert!(tmp.path().join("a.txt.gz").exists());
+    assert!(tmp.path().join("b.txt.gz").exists());
+
+    // …but -o cannot fan out to two outputs.
+    squash()
+        .args(["c", "a.txt", "b.txt", "-f", "gz", "-o", "one.gz"])
+        .current_dir(tmp.path())
+        .assert()
+        .code(2)
+        .stderr(predicates::str::contains("one output per input"));
+}
+
+#[test]
+fn compound_tar_gz_extracts_as_tar_not_gz() {
+    let tmp = tempfile::tempdir().unwrap();
+    build_tree(tmp.path());
+    squash()
+        .args(["c", "data", "-o", "backup.tar.gz"])
+        .current_dir(tmp.path())
+        .assert()
+        .success();
+
+    let dest = tmp.path().join("dest");
+    squash()
+        .args(["x", "backup.tar.gz", "-o"])
+        .arg(&dest)
+        .current_dir(tmp.path())
+        .assert()
+        .success();
+    // tar.gz layout rule (single root extracts as-is) — a gz mis-route would
+    // have produced a bare `backup.tar` file instead.
+    assert_eq!(
+        fs::read(dest.join("data/hello.txt")).unwrap(),
+        b"hello world"
+    );
+    assert!(!dest.join("backup.tar").exists());
+}
+
+#[test]
+fn json_single_file_compress_matches_schema() {
+    let tmp = tempfile::tempdir().unwrap();
+    fs::write(tmp.path().join("big.log"), b"log line\n".repeat(1000)).unwrap();
+
+    let output = squash()
+        .args(["--json", "c", "big.log", "-f", "zst"])
+        .current_dir(tmp.path())
+        .assert()
+        .success()
+        .get_output()
+        .stdout
+        .clone();
+    let lines: Vec<serde_json::Value> = String::from_utf8(output)
+        .unwrap()
+        .lines()
+        .map(|l| serde_json::from_str(l).unwrap())
+        .collect();
+    assert_eq!(lines[0]["type"], "job");
+    assert_eq!(lines[0]["format"], "zst");
+    assert_eq!(lines[1]["type"], "started");
+    let result = lines.last().unwrap();
+    assert_eq!(result["type"], "result");
+    assert_eq!(result["status"], "finished");
+}

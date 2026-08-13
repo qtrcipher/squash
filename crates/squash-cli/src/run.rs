@@ -80,6 +80,9 @@ fn run_compress(
             exit_codes::USAGE,
         );
     }
+    if format.is_single_file() {
+        return run_compress_single_file(engine, inputs, output, format, preset, json);
+    }
     let destination = output
         .clone()
         .unwrap_or_else(|| default_output(inputs, format));
@@ -87,6 +90,47 @@ fn run_compress(
     let job = Job::compress(inputs.to_vec(), destination, format, preset);
     let handle = engine.submit(job.clone());
     drive(&handle, &job, json, None)
+}
+
+/// Single-file codecs (gz/xz/zst) take exactly one regular file per job.
+/// Multiple inputs follow the docs/03 F4 default — one output per input
+/// (`<name>.<ext>` next to each source) — so `-o` is only valid with one.
+fn run_compress_single_file(
+    engine: &Engine,
+    inputs: &[PathBuf],
+    output: &Option<PathBuf>,
+    format: Format,
+    preset: Preset,
+    json: bool,
+) -> i32 {
+    for input in inputs {
+        if input.is_dir() {
+            return fail(
+                json,
+                &format!(
+                    "{format} compresses a single file — use tar.gz or tar.zst for directories"
+                ),
+                exit_codes::USAGE,
+            );
+        }
+    }
+    if inputs.len() > 1 && output.is_some() {
+        return fail(
+            json,
+            "-o takes one output path; single-file formats write one output per input",
+            exit_codes::USAGE,
+        );
+    }
+    let mut exit = exit_codes::SUCCESS;
+    for input in inputs {
+        let destination = output
+            .clone()
+            .unwrap_or_else(|| default_output(std::slice::from_ref(input), format));
+        let job = Job::compress(vec![input.clone()], destination, format, preset);
+        let handle = engine.submit(job.clone());
+        exit = exit.max(drive(&handle, &job, json, None));
+    }
+    exit
 }
 
 fn run_extract(engine: &Engine, inputs: &[PathBuf], output: &Option<PathBuf>, json: bool) -> i32 {
@@ -131,7 +175,7 @@ fn resolve_compress_format(
 ) -> Result<Format, i32> {
     if let Some(raw) = format_arg {
         return parse_format(raw).ok_or_else(|| {
-            eprintln!("squash: unknown format '{raw}' (try zip, 7z, tar.gz, tar.zst)");
+            eprintln!("squash: unknown format '{raw}' (try zip, 7z, tar.gz, tar.zst, gz, xz, zst)");
             exit_codes::USAGE
         });
     }

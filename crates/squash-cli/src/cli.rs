@@ -31,7 +31,8 @@ pub enum Commands {
         #[arg(short, long)]
         output: Option<PathBuf>,
 
-        /// Archive format: zip | 7z | tar.gz | tar.zst.
+        /// Archive format: zip | 7z | tar.gz | tar.zst | gz | xz | zst.
+        /// Single-file codecs (gz/xz/zst) take files only, one output each.
         #[arg(short, long)]
         format: Option<String>,
 

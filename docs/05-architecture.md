@@ -82,7 +82,7 @@ squash/
 | tar.bz2 | ✅ | — | `tar` + `bzip2` | Extract-only (matches MVP compress list) |
 | tar.xz | ✅ | — | `tar` + `xz2` | Extract-only; xz supply-chain history (CVE-2024-3094) noted — pin vendored liblzma from upstream release tarballs only |
 | tar.zst | ✅ | ✅ | `tar` + `zstd` | The speed differentiator (doc 02 §4) |
-| gz / xz / zst (single-file) | ✅ | zst only | codec crates | |
+| gz / xz / zst (single-file) | ✅ | ✅ | codec crates | Codecs, not archivers: exactly one file per create job (CLI batch mode writes one output per input, doc 03 F4); extract strips one codec extension — the doc 03 F3 folder rule never applies |
 | brotli | — | — | — | Not in MVP (doc 01 §3.2); registry leaves room |
 
 **Plugin-in path:** adding a format = one new module implementing `FormatHandler` + registry entry + fixtures + fuzz target. No changes to job model, presets (add a row to the preset table), CLI, or GUI. Brotli and encrypted-archive support slot in this way post-v1.

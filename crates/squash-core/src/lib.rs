@@ -1,9 +1,10 @@
 //! Squash shared compression core.
 //!
 //! One core, two thin shells (CLI + Tauri GUI) — see `docs/05-architecture.md`.
-//! Phase 2: the engine executes jobs on a worker thread; zip, 7z and the tar
-//! family are implemented behind [`format::FormatHandler`]; every
-//! extraction path passes through the [`safety`] zip-slip layer.
+//! Phase 2: the engine executes jobs on a worker thread; zip, 7z, the tar
+//! family and the gz/xz/zst single-file codecs are implemented behind
+//! [`format::FormatHandler`]; every extraction path passes through the
+//! [`safety`] zip-slip layer.
 
 pub mod engine;
 pub mod error;

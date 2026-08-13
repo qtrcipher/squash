@@ -2,13 +2,15 @@
 //! into [`crate::FormatRegistry`] by [`register_builtin`].
 //!
 //! Implemented: zip and 7z (create+extract), tar.gz / tar.zst
-//! (create+extract), tar / tar.bz2 / tar.xz (extract-only), and rar
-//! (extract-only, behind the default `rar` feature — the RARLAB license
-//! forbids RAR creation; see vendor/unrar/README.squash.md).
+//! (create+extract), tar / tar.bz2 / tar.xz (extract-only), gz / xz / zst
+//! single-file codecs (create+extract), and rar (extract-only, behind the
+//! default `rar` feature — the RARLAB license forbids RAR creation; see
+//! vendor/unrar/README.squash.md).
 
 #[cfg(feature = "rar")]
 pub mod rar;
 pub mod sevenz;
+pub mod single_file;
 pub mod tar_family;
 pub mod zip;
 
@@ -28,6 +30,9 @@ pub fn register_builtin(registry: &mut FormatRegistry) {
     registry.register(Box::new(tar_family::TarBz2Handler));
     registry.register(Box::new(tar_family::TarXzHandler));
     registry.register(Box::new(tar_family::TarZstHandler));
+    registry.register(Box::new(single_file::GzHandler));
+    registry.register(Box::new(single_file::XzHandler));
+    registry.register(Box::new(single_file::ZstHandler));
 }
 
 /// Look up a preset's level from [`crate::presets::PRESET_TABLE`] and clamp
@@ -167,6 +172,9 @@ mod tests {
         // docs/05 §3 anchor: fast tar.zst = zstd 3.
         assert_eq!(clamped_level(Format::TarZst, Preset::Fast).unwrap(), 3);
         assert_eq!(clamped_level(Format::Zip, Preset::Max).unwrap(), 9);
+        // Single-file codecs share the same table/bounds machinery.
+        assert_eq!(clamped_level(Format::Gz, Preset::Balanced).unwrap(), 6);
+        assert_eq!(clamped_level(Format::Zst, Preset::Max).unwrap(), 19);
         // Extract-only formats have no preset row.
         assert_eq!(
             clamped_level(Format::Tar, Preset::Balanced),

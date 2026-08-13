@@ -60,8 +60,18 @@ impl Format {
         Self::Zst,
     ];
 
-    /// Formats Squash can create (docs/01 §3.2, docs/06 `default_format`).
-    pub const CREATE_CAPABLE: [Format; 4] = [Self::Zip, Self::SevenZ, Self::TarGz, Self::TarZst];
+    /// Formats Squash can create (docs/05 §4): the docs/01 §3.2 MVP compress
+    /// list plus the single-file codecs (CLI/API surface; the GUI's S2 format
+    /// control still offers the MVP four).
+    pub const CREATE_CAPABLE: [Format; 7] = [
+        Self::Zip,
+        Self::SevenZ,
+        Self::TarGz,
+        Self::TarZst,
+        Self::Gz,
+        Self::Xz,
+        Self::Zst,
+    ];
 
     /// Canonical name, matching the serde representation.
     pub fn name(&self) -> &'static str {
@@ -99,6 +109,14 @@ impl Format {
 
     pub fn can_create(&self) -> bool {
         Self::CREATE_CAPABLE.contains(self)
+    }
+
+    /// Single-file codecs (docs/05 §4): one stream in, one stream out — no
+    /// multi-entry container, so compress takes exactly one file per job and
+    /// extract strips one codec extension instead of applying the docs/03 F3
+    /// folder rule.
+    pub fn is_single_file(&self) -> bool {
+        matches!(self, Self::Gz | Self::Xz | Self::Zst)
     }
 
     /// Every format in the registry can be extracted (docs/05 §4).
@@ -191,7 +209,8 @@ pub struct FormatRegistry {
 }
 
 impl FormatRegistry {
-    /// Registry with all built-in handlers (Phase 2: zip + 7z + tar family).
+    /// Registry with all built-in handlers (Phase 2: zip + 7z + tar family +
+    /// single-file codecs).
     pub fn new() -> Self {
         let mut reg = Self::empty();
         crate::formats::register_builtin(&mut reg);
@@ -235,20 +254,47 @@ mod tests {
         assert_eq!(reg.detect(Path::new("photos.TAR.GZ")), Some(Format::TarGz));
         assert_eq!(reg.detect(Path::new("x.tgz")), Some(Format::TarGz));
         assert_eq!(reg.detect(Path::new("x.tar.zst")), Some(Format::TarZst));
+        assert_eq!(reg.detect(Path::new("data.csv.gz")), Some(Format::Gz));
+        assert_eq!(reg.detect(Path::new("big.log.xz")), Some(Format::Xz));
+        assert_eq!(reg.detect(Path::new("big.log.zst")), Some(Format::Zst));
         assert_eq!(reg.detect(Path::new("no-extension")), None);
     }
 
     #[test]
+    fn compound_extensions_win_over_single_file_codecs() {
+        // Format::ALL lists the tar family before gz/xz/zst, and `detect`
+        // returns the FIRST match — a `.tar.gz` must never classify as `gz`.
+        let reg = FormatRegistry::new();
+        assert_eq!(reg.detect(Path::new("backup.tar.gz")), Some(Format::TarGz));
+        assert_eq!(reg.detect(Path::new("backup.tar.xz")), Some(Format::TarXz));
+        assert_eq!(
+            reg.detect(Path::new("backup.tar.zst")),
+            Some(Format::TarZst)
+        );
+        assert_eq!(reg.detect(Path::new("backup.tzst")), Some(Format::TarZst));
+    }
+
+    #[test]
     fn capability_contract() {
-        // docs/05 §4: create set is exactly the MVP compress list; rar never.
-        assert_eq!(Format::CREATE_CAPABLE.len(), 4);
+        // docs/05 §4: the MVP compress list plus the single-file codecs can
+        // create; rar never, tar.bz2/tar.xz stay extract-only.
+        assert_eq!(Format::CREATE_CAPABLE.len(), 7);
         assert!(!Format::Rar.can_create());
         assert!(!Format::TarBz2.can_create());
         assert!(!Format::TarXz.can_create());
-        assert!(!Format::Gz.can_create());
-        assert!(!Format::Xz.can_create());
-        assert!(Format::Zst.can_extract());
+        assert!(Format::Gz.can_create());
+        assert!(Format::Xz.can_create());
+        assert!(Format::Zst.can_create());
         assert!(Format::ALL.iter().all(|f| f.can_extract()));
+    }
+
+    #[test]
+    fn single_file_codecs_are_exactly_gz_xz_zst() {
+        assert!(Format::Gz.is_single_file());
+        assert!(Format::Xz.is_single_file());
+        assert!(Format::Zst.is_single_file());
+        assert!(!Format::TarGz.is_single_file());
+        assert!(!Format::Zip.is_single_file());
     }
 
     #[test]
@@ -275,7 +321,7 @@ mod tests {
     #[test]
     fn new_registry_has_builtin_handlers() {
         let reg = FormatRegistry::new();
-        // Phase 2: zip + 7z + tar family are implemented…
+        // Phase 2: zip + 7z + tar family + single-file codecs are implemented…
         for format in [
             Format::Zip,
             Format::SevenZ,
@@ -284,18 +330,17 @@ mod tests {
             Format::TarBz2,
             Format::TarXz,
             Format::TarZst,
+            Format::Gz,
+            Format::Xz,
+            Format::Zst,
         ] {
             assert!(reg.handler_for(format).is_some(), "{format} missing");
         }
-        // …rar ships behind its default cargo feature…
+        // …rar ships behind its default cargo feature.
         #[cfg(feature = "rar")]
         assert!(reg.handler_for(Format::Rar).is_some());
         #[cfg(not(feature = "rar"))]
         assert!(reg.handler_for(Format::Rar).is_none());
-        // …gz/xz/zst land in later tasks.
-        for format in [Format::Gz, Format::Xz, Format::Zst] {
-            assert!(reg.handler_for(format).is_none(), "{format} unexpected");
-        }
     }
 
     #[test]

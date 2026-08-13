@@ -325,3 +325,227 @@ fn multiple_compress_inputs_keep_their_names() {
     assert_eq!(fs::read(dest.join("multi/alpha/x.txt")).unwrap(), b"x");
     assert_eq!(fs::read(dest.join("multi/beta.txt")).unwrap(), b"beta");
 }
+
+// --- single-file codecs (gz / xz / zst) --------------------------------------
+
+/// Pseudo-random but deterministic, moderately compressible payload.
+fn payload() -> Vec<u8> {
+    (0..200_000u32)
+        .map(|i| ((i * 31 + (i >> 8)) % 251) as u8)
+        .collect()
+}
+
+/// Single-file round-trip: one file in → `<name>.<ext>` → extract strips
+/// exactly one codec extension, never creates a folder (docs/03 F3 is for
+/// multi-file archives).
+fn single_file_roundtrip(format: Format, preset: Preset) {
+    let tmp = tempfile::tempdir().unwrap();
+    let src = tmp.path().join("data.csv");
+    let content = payload();
+    fs::write(&src, &content).unwrap();
+
+    let engine = Engine::new();
+    let archive = tmp
+        .path()
+        .join(format!("data.csv.{}", format.extensions()[0]));
+    let stats = engine
+        .submit(Job::compress(
+            vec![src.clone()],
+            archive.clone(),
+            format,
+            preset,
+        ))
+        .wait()
+        .unwrap_or_else(|e| panic!("compress {format}/{preset:?} failed: {e}"));
+    assert_eq!(stats.in_bytes, content.len() as u64);
+    assert!(stats.out_bytes > 0);
+
+    let dest = tmp.path().join("extracted");
+    let stats = engine
+        .submit(Job::extract(vec![archive], dest.clone(), format))
+        .wait()
+        .unwrap_or_else(|e| panic!("extract {format} failed: {e}"));
+    assert_eq!(stats.out_bytes, content.len() as u64);
+
+    // `data.csv.gz` → `data.csv` directly in the destination.
+    assert_eq!(fs::read(dest.join("data.csv")).unwrap(), content);
+    assert_eq!(
+        fs::read_dir(&dest).unwrap().count(),
+        1,
+        "single-file extract must not create a folder"
+    );
+}
+
+#[test]
+fn roundtrip_gz_all_presets() {
+    for preset in Preset::ALL {
+        single_file_roundtrip(Format::Gz, preset);
+    }
+}
+
+#[test]
+fn roundtrip_xz_all_presets() {
+    for preset in Preset::ALL {
+        single_file_roundtrip(Format::Xz, preset);
+    }
+}
+
+#[test]
+fn roundtrip_zst_all_presets() {
+    for preset in Preset::ALL {
+        single_file_roundtrip(Format::Zst, preset);
+    }
+}
+
+/// Foreign decode path: a zstd frame produced directly by the provider crate
+/// (not by the Squash handler) must extract the same way.
+#[test]
+fn extract_zst_foreign() {
+    let tmp = tempfile::tempdir().unwrap();
+    let content = payload();
+    let archive = tmp.path().join("foreign.bin.zst");
+    {
+        let file = fs::File::create(&archive).unwrap();
+        zstd::stream::copy_encode(&content[..], file, 3).unwrap();
+    }
+    let dest = tmp.path().join("out");
+    Engine::new()
+        .submit(Job::extract(vec![archive], dest.clone(), Format::Zst))
+        .wait()
+        .unwrap();
+    assert_eq!(fs::read(dest.join("foreign.bin")).unwrap(), content);
+}
+
+#[test]
+fn single_file_progress_events_flow() {
+    use squash_core::ProgressEvent;
+    let tmp = tempfile::tempdir().unwrap();
+    let src = tmp.path().join("big.log");
+    fs::write(&src, payload()).unwrap();
+
+    let engine = Engine::new();
+    let archive = tmp.path().join("big.log.gz");
+    let handle = engine.submit(Job::compress(
+        vec![src],
+        archive.clone(),
+        Format::Gz,
+        Preset::Balanced,
+    ));
+    let mut events = Vec::new();
+    while let Some(event) = handle.next_event() {
+        events.push(event);
+    }
+    assert!(matches!(
+        events.first(),
+        Some(ProgressEvent::Started { .. })
+    ));
+    assert!(matches!(
+        events.last(),
+        Some(ProgressEvent::Finished { .. })
+    ));
+    assert!(events
+        .iter()
+        .any(|e| matches!(e, ProgressEvent::Advanced { .. })));
+
+    let handle = engine.submit(Job::extract(
+        vec![archive],
+        tmp.path().join("out"),
+        Format::Gz,
+    ));
+    let mut events = Vec::new();
+    while let Some(event) = handle.next_event() {
+        events.push(event);
+    }
+    assert!(matches!(
+        events.first(),
+        Some(ProgressEvent::Started { .. })
+    ));
+    assert!(matches!(
+        events.last(),
+        Some(ProgressEvent::Finished { .. })
+    ));
+    assert!(events
+        .iter()
+        .any(|e| matches!(e, ProgressEvent::Advanced { .. })));
+}
+
+/// A directory is not a file: the codec rejects it as a usage error and
+/// leaves no partial output behind.
+#[test]
+fn single_file_compress_rejects_directory() {
+    let tmp = tempfile::tempdir().unwrap();
+    let dir = tmp.path().join("srcdir");
+    fs::create_dir_all(&dir).unwrap();
+    let dest = tmp.path().join("srcdir.gz");
+    let err = Engine::new()
+        .submit(Job::compress(
+            vec![dir],
+            dest.clone(),
+            Format::Gz,
+            Preset::Balanced,
+        ))
+        .wait()
+        .unwrap_err();
+    assert_eq!(err, squash_core::SquashError::UnsupportedFormat);
+    assert!(!dest.exists());
+}
+
+/// Codecs carry no container: multiple inputs cannot go into one stream.
+#[test]
+fn single_file_compress_rejects_multiple_inputs() {
+    let tmp = tempfile::tempdir().unwrap();
+    let a = tmp.path().join("a.txt");
+    let b = tmp.path().join("b.txt");
+    fs::write(&a, b"a").unwrap();
+    fs::write(&b, b"b").unwrap();
+    let dest = tmp.path().join("out.zst");
+    let err = Engine::new()
+        .submit(Job::compress(
+            vec![a, b],
+            dest.clone(),
+            Format::Zst,
+            Preset::Balanced,
+        ))
+        .wait()
+        .unwrap_err();
+    assert_eq!(err, squash_core::SquashError::UnsupportedFormat);
+    assert!(!dest.exists());
+}
+
+/// Compound extensions win: `backup.tar.gz` round-trips through the tar
+/// handler, and extraction applies the docs/03 F3 folder rule — proving the
+/// `.gz` suffix did not route it to the single-file codec.
+#[test]
+fn tar_gz_compound_extension_not_shadowed_by_gz() {
+    let tmp = tempfile::tempdir().unwrap();
+    let src = tmp.path().join("src");
+    build_source_tree(&src);
+
+    let engine = Engine::new();
+    let archive = tmp.path().join("backup.tar.gz");
+    // Detect through the registry, exactly like the CLI extract path does.
+    assert_eq!(
+        engine.registry().detect(&archive),
+        Some(Format::TarGz),
+        "backup.tar.gz must detect as tar.gz, not gz"
+    );
+    engine
+        .submit(Job::compress(
+            vec![src.join("data")],
+            archive.clone(),
+            Format::TarGz,
+            Preset::Balanced,
+        ))
+        .wait()
+        .unwrap();
+    let dest = tmp.path().join("out");
+    engine
+        .submit(Job::extract(
+            vec![archive.clone()],
+            dest.clone(),
+            engine.registry().detect(&archive).unwrap(),
+        ))
+        .wait()
+        .unwrap();
+    assert_trees_equal(&src.join("data"), &dest.join("data"));
+}

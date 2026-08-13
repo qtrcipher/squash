@@ -25,7 +25,7 @@ All timestamps RFC 3339 UTC. All paths stored as plain strings, **never canonica
 | `language` | enum `en\|ar` | OS locale if supported, else `en` | unknown → `en` + warn |
 | `theme` | enum `system\|light\|dark` | `system` | unknown → `system` |
 | `default_preset` | preset id | `builtin:balanced` | must resolve to a known preset, else `builtin:balanced` |
-| `default_format` | enum `zip\|7z\|tar.gz\|tar.zst` | `zip` | create-capable formats only (doc 05 §4) |
+| `default_format` | enum `zip\|7z\|tar.gz\|tar.zst\|gz\|xz\|zst` | `zip` | create-capable formats only (doc 05 §4) |
 | `extract.dest_policy` | enum `same_folder\|ask` | `same_folder` | matches S3 default (doc 03 F3) |
 | `extract.loose_files_policy` | enum `new_folder\|here` | `new_folder` | anti–desktop-explosion default (doc 03 F3) |
 | `update_check_opt_in` | bool | `false` | — |
@@ -41,7 +41,7 @@ Built-ins (`builtin:fast|balanced|max`) are **code-defined** in `squash-core`'s 
 | `id` | string `user:<uuidv4>` | generated | unique; builtin ids reserved |
 | `name` | string | required | trimmed, 1–40 chars, no control chars, case-insensitively unique |
 | `format` | enum (create-capable set) | required | must exist in the format registry |
-| `params.level` | int | format default | per-format bounds: zip `1–9`, 7z `0–9`, tar.gz `1–9`, tar.zst `1–22`; out-of-range → clamp + warn |
+| `params.level` | int | format default | per-format bounds: zip `1–9`, 7z `0–9`, tar.gz `1–9`, tar.zst `1–22`, gz `1–9`, xz `0–9`, zst `1–22`; out-of-range → clamp + warn |
 | `created_at` | timestamp | now | — |
 
 ⚠ **Conflict flagged:** doc 03 §7 says "three presets only" and doc 01 says "no per-codec flag jungle in the GUI." Task input requires user presets (Dana, doc 01 §2). Proposed resolution: user presets are creatable by **editing the file or via CLI in v1**; the GUI *lists* them but ships no preset editor. Needs owner sign-off; if rejected, this entity drops and CLI keeps exactly three presets.
