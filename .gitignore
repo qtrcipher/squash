@@ -1,0 +1,24 @@
+# OS junk
+.DS_Store
+Thumbs.db
+
+# Secrets / env — never commit
+.env
+.env.*
+*.pem
+*.key
+secrets/
+
+# Build outputs (common across stacks)
+build/
+dist/
+out/
+target/
+node_modules/
+__pycache__/
+*.o
+*.obj
+*.exe
+
+# Logs
+*.log
