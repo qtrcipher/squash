@@ -132,8 +132,15 @@ pub fn append_history(data_dir: &Path, record: &HistoryRecord) -> Result<(), Sto
     debug_assert!(!line.contains('\n'));
 
     std::fs::create_dir_all(data_dir)?;
+    // `read(true)` is required on Windows, not for reading: a pure-append
+    // handle is opened there without GENERIC_READ/GENERIC_WRITE
+    // (rust-lang/rust#54118), and LockFileEx — which fs2's lock wraps —
+    // rejects such a handle with `Access is denied` (os error 5,
+    // fs2-rs#26). Writes still go through FILE_APPEND_DATA, so the
+    // append-only semantics are unchanged.
     let file = std::fs::OpenOptions::new()
         .create(true)
+        .read(true)
         .append(true)
         .open(data_dir.join(HISTORY_FILE))?;
     file.lock_exclusive()?;
