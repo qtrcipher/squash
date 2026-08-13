@@ -4,7 +4,9 @@ import { api, type ArchiveRef, type ItemRef, type JobEntry, type Settings } from
 import { applyTheme } from "./format";
 import i18n from "./i18n";
 import {
+  etaSeconds,
   initialQueueState,
+  progressRatio,
   queueReducer,
   type QueueJob,
 } from "./state/queue";
@@ -41,6 +43,9 @@ export default function App() {
   const [pendingArchives, setPendingArchives] = useState<ArchiveRef[]>([]);
   const [announcement, setAnnouncement] = useState("");
   const knownStatuses = useRef<Record<string, QueueJob["status"]>>({});
+  /** Highest 25% milestone already announced per job (throttling, docs/03 §5:
+   * percent + ETA at throttled intervals — never per-percent chatter). */
+  const knownMilestones = useRef<Record<string, number>>({});
 
   /** Dismiss the one-time drop-zone hint and persist the flag (best-effort —
    * a failed save only means the hint returns next launch). */
@@ -127,18 +132,35 @@ export default function App() {
     };
   }, [drainOpenPaths]);
 
-  // Screen-reader announcements on terminal transitions (docs/03 §5).
+  // Screen-reader announcements on terminal transitions and throttled 25%
+  // progress milestones (docs/03 §5).
   useEffect(() => {
     for (const id of queue.order) {
       const job = queue.jobs[id];
       const known = knownStatuses.current[id];
-      if (known === job.status) continue;
-      knownStatuses.current[id] = job.status;
-      if (known && job.status === "finished") {
-        setAnnouncement(t("queue.announceDone", { name: job.label }));
-      } else if (known && job.status === "failed") {
-        setAnnouncement(t("queue.announceFailed", { name: job.label }));
+      if (known !== job.status) {
+        knownStatuses.current[id] = job.status;
+        knownMilestones.current[id] = 0; // a fresh run re-announces milestones
+        if (known && job.status === "finished") {
+          setAnnouncement(t("queue.announceDone", { name: job.label }));
+        } else if (known && job.status === "failed") {
+          setAnnouncement(t("queue.announceFailed", { name: job.label }));
+        }
+        continue;
       }
+      if (job.status !== "running") continue;
+      const ratio = progressRatio(job);
+      if (ratio === null) continue; // indeterminate: nothing useful to announce
+      const milestone = Math.min(3, Math.floor(ratio * 4));
+      if (milestone <= (knownMilestones.current[id] ?? 0)) continue;
+      knownMilestones.current[id] = milestone;
+      const percent = milestone * 25;
+      const eta = etaSeconds(job);
+      setAnnouncement(
+        eta !== null
+          ? t("queue.announceProgressEta", { name: job.label, percent, seconds: eta })
+          : t("queue.announceProgress", { name: job.label, percent }),
+      );
     }
   }, [queue, t]);
 

@@ -69,6 +69,7 @@ export default function SettingsSheet({
           id="settings-language"
           className="input"
           value={draft.language}
+          data-autofocus
           onChange={(event) => update({ language: event.target.value as Settings["language"] })}
         >
           <option value="en">English</option>

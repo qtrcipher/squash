@@ -4,6 +4,7 @@ import { open } from "@tauri-apps/plugin-dialog";
 import { api, type ItemRef, type JobEntry } from "../api";
 import { baseName, formatBytes, joinPath, parentDir } from "../format";
 import Sheet from "./Sheet";
+import SegmentedControl from "./SegmentedControl";
 
 const FORMATS = ["zip", "7z", "tar.gz", "tar.zst"] as const;
 const PRESETS = ["fast", "balanced", "max"] as const;
@@ -105,6 +106,14 @@ export default function CompressSheet({
     }
   };
 
+  /** Return activates the primary action from any text field (docs/03 §5). */
+  const submitOnEnter = (event: React.KeyboardEvent) => {
+    if (event.key === "Enter" && nameError === null && !submitting) {
+      event.preventDefault();
+      void submit();
+    }
+  };
+
   return (
     <Sheet title={t("compress.title")} onClose={onClose}>
       <p className="sheet-summary">
@@ -116,40 +125,25 @@ export default function CompressSheet({
         <span className="field-label" id="compress-format-label">
           {t("compress.format")}
         </span>
-        <div className="segmented" role="radiogroup" aria-labelledby="compress-format-label">
-          {FORMATS.map((f) => (
-            <button
-              key={f}
-              type="button"
-              role="radio"
-              aria-checked={format === f}
-              className={format === f ? "segment active" : "segment"}
-              onClick={() => setFormat(f)}
-            >
-              {f}
-            </button>
-          ))}
-        </div>
+        <SegmentedControl
+          labelId="compress-format-label"
+          options={FORMATS.map((f) => ({ value: f as string, label: f }))}
+          value={format}
+          onChange={setFormat}
+          autoFocus={!combined}
+        />
       </div>
 
       <div className="field">
         <span className="field-label" id="compress-preset-label">
           {t("compress.preset")}
         </span>
-        <div className="segmented" role="radiogroup" aria-labelledby="compress-preset-label">
-          {PRESETS.map((p) => (
-            <button
-              key={p}
-              type="button"
-              role="radio"
-              aria-checked={preset === p}
-              className={preset === p ? "segment active" : "segment"}
-              onClick={() => setPreset(p)}
-            >
-              {t(`compress.presets.${p}`)}
-            </button>
-          ))}
-        </div>
+        <SegmentedControl
+          labelId="compress-preset-label"
+          options={PRESETS.map((p) => ({ value: p as string, label: t(`compress.presets.${p}`) }))}
+          value={preset}
+          onChange={setPreset}
+        />
       </div>
 
       {batch && (
@@ -157,26 +151,15 @@ export default function CompressSheet({
           <span className="field-label" id="compress-mode-label">
             {t("compress.batchMode")}
           </span>
-          <div className="segmented" role="radiogroup" aria-labelledby="compress-mode-label">
-            <button
-              type="button"
-              role="radio"
-              aria-checked={mode === "perItem"}
-              className={mode === "perItem" ? "segment active" : "segment"}
-              onClick={() => setMode("perItem")}
-            >
-              {t("compress.onePerItem")}
-            </button>
-            <button
-              type="button"
-              role="radio"
-              aria-checked={mode === "combined"}
-              className={mode === "combined" ? "segment active" : "segment"}
-              onClick={() => setMode("combined")}
-            >
-              {t("compress.combined")}
-            </button>
-          </div>
+          <SegmentedControl
+            labelId="compress-mode-label"
+            options={[
+              { value: "perItem", label: t("compress.onePerItem") },
+              { value: "combined", label: t("compress.combined") },
+            ]}
+            value={mode}
+            onChange={(next) => setMode(next as "perItem" | "combined")}
+          />
         </div>
       )}
 
@@ -191,6 +174,8 @@ export default function CompressSheet({
             type="text"
             value={name}
             onChange={(event) => setName(event.target.value)}
+            onKeyDown={submitOnEnter}
+            data-autofocus
             aria-invalid={nameError !== null}
             aria-describedby={nameError ? "compress-name-error" : undefined}
           />
@@ -209,6 +194,7 @@ export default function CompressSheet({
             dir="ltr"
             value={location}
             onChange={(event) => setLocation(event.target.value)}
+            onKeyDown={submitOnEnter}
           />
           <button type="button" className="button" onClick={() => void browse()}>
             {t("actions.browse")}

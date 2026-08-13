@@ -7,6 +7,7 @@
     "or": "or",
     "chooseFiles": "Choose Files…",
     "a11yLabel": "Drop files or archives to compress or extract",
+    "a11yHint": "Press Enter to choose files instead",
     "dragOver": "Release to add"
   },
   "actions": {
@@ -33,7 +34,15 @@
     "savedSummary": "{{name}} — {{inBytes}} → {{outBytes}}, saved {{percent}}%",
     "extractedSummary": "{{name}} — extracted",
     "announceDone": "{{name}} finished",
-    "announceFailed": "{{name}} failed"
+    "announceFailed": "{{name}} failed",
+    "announceProgress": "{{name}} — {{percent}}% complete",
+    "announceProgressEta": "{{name}} — {{percent}}% complete, about {{seconds}}s left",
+    "progressLabel": "Progress for {{name}}",
+    "cancelJob": "Cancel {{name}}",
+    "retryJob": "Retry {{name}}",
+    "revealJob": "Show {{name}} in folder",
+    "copyPathJob": "Copy path of {{name}}",
+    "dismissJob": "Dismiss {{name}}"
   },
   "compress": {
     "title": "Compress",

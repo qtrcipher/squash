@@ -38,17 +38,33 @@ export default function DropZone({ onPaths }: { onPaths: (paths: string[]) => vo
   };
 
   return (
+    // The whole zone is the SR/keyboard "button equivalent" (docs/03 §5):
+    // Enter/Space/click all open the file picker, and the zone carries the
+    // role + instructions. The visual "Choose Files…" chip is a styled span,
+    // not a nested button — nested interactives would break the control.
     <div
       className={dragOver ? "drop-zone drag-over" : "drop-zone"}
-      role="group"
+      role="button"
+      tabIndex={0}
       aria-label={t("dropZone.a11yLabel")}
+      aria-describedby="drop-zone-instructions"
+      onClick={() => void chooseFiles()}
+      onKeyDown={(event) => {
+        if (event.key === "Enter" || event.key === " ") {
+          event.preventDefault(); // keep Space from scrolling the window
+          void chooseFiles();
+        }
+      }}
     >
       <DropIcon />
       <p className="prompt">{dragOver ? t("dropZone.dragOver") : t("dropZone.prompt")}</p>
-      <span>{t("dropZone.or")}</span>
-      <button type="button" className="button primary" onClick={() => void chooseFiles()}>
+      <span id="drop-zone-instructions" className="visually-hidden">
+        {t("dropZone.a11yHint")}
+      </span>
+      <span aria-hidden="true">{t("dropZone.or")}</span>
+      <span className="button primary" aria-hidden="true">
         {t("dropZone.chooseFiles")}
-      </button>
+      </span>
     </div>
   );
 }

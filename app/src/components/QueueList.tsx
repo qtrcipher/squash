@@ -33,9 +33,12 @@ export default function QueueList({
     return (
       <section className="queue" aria-label={t("queue.title")} aria-busy="true">
         <h2 className="queue-title">{t("queue.title")}</h2>
-        <ul className="queue-list">
+        <p className="visually-hidden" role="status">
+          {t("queue.restoring")}
+        </p>
+        <ul className="queue-list" aria-hidden="true">
           {[0, 1].map((i) => (
-            <li key={i} className="queue-row skeleton" aria-label={t("queue.restoring")}>
+            <li key={i} className="queue-row skeleton">
               <span className="skeleton-block" />
               <span className="skeleton-block wide" />
             </li>
@@ -115,6 +118,7 @@ function QueueRow({
             <div
               className={ratio === null ? "progress indeterminate" : "progress"}
               role="progressbar"
+              aria-label={t("queue.progressLabel", { name: job.label })}
               aria-valuenow={ratio === null ? undefined : Math.round(ratio * 100)}
               aria-valuemin={0}
               aria-valuemax={100}
@@ -157,37 +161,72 @@ function QueueRow({
 
       <div className="job-actions">
         {(job.status === "queued" || job.status === "running") && (
-          <button type="button" className="button small" onClick={cancel}>
+          <button
+            type="button"
+            className="button small"
+            aria-label={t("queue.cancelJob", { name: job.label })}
+            onClick={cancel}
+          >
             {t("actions.cancel")}
           </button>
         )}
         {job.status === "finished" && (
           <>
-            <button type="button" className="button small" onClick={reveal}>
+            <button
+              type="button"
+              className="button small"
+              aria-label={t("queue.revealJob", { name: job.label })}
+              onClick={reveal}
+            >
               {t("actions.reveal")}
             </button>
-            <button type="button" className="button small" onClick={copyPath}>
+            <button
+              type="button"
+              className="button small"
+              aria-label={t("queue.copyPathJob", { name: job.label })}
+              onClick={copyPath}
+            >
               {copied ? t("actions.copied") : t("actions.copyPath")}
             </button>
           </>
         )}
         {job.status === "failed" && (
           <>
-            <button type="button" className="button small" onClick={retry}>
+            <button
+              type="button"
+              className="button small"
+              aria-label={t("queue.retryJob", { name: job.label })}
+              onClick={retry}
+            >
               {t("actions.retry")}
             </button>
-            <button type="button" className="button small" onClick={reveal}>
+            <button
+              type="button"
+              className="button small"
+              aria-label={t("queue.revealJob", { name: job.label })}
+              onClick={reveal}
+            >
               {t("actions.reveal")}
             </button>
           </>
         )}
         {job.status === "cancelled" && (
-          <button type="button" className="button small" onClick={retry}>
+          <button
+            type="button"
+            className="button small"
+            aria-label={t("queue.retryJob", { name: job.label })}
+            onClick={retry}
+          >
             {t("actions.retry")}
           </button>
         )}
         {job.status !== "queued" && job.status !== "running" && (
-          <button type="button" className="button small" onClick={dismiss}>
+          <button
+            type="button"
+            className="button small"
+            aria-label={t("queue.dismissJob", { name: job.label })}
+            onClick={dismiss}
+          >
             {t("actions.dismiss")}
           </button>
         )}

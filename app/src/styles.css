@@ -166,6 +166,14 @@ html[dir="rtl"] body {
   color: var(--text-secondary);
   text-align: center;
   padding: 48px;
+  cursor: pointer;
+}
+
+/* The zone is one big control (role="button"); the "Choose Files…" chip is a
+   styled span inside it, so it needs the button layout the class assumes. */
+.drop-zone .button {
+  display: inline-flex;
+  align-items: center;
 }
 
 .drop-zone .prompt {
@@ -554,6 +562,18 @@ html[dir="rtl"] body {
   background: var(--accent);
   color: var(--on-accent);
   font-weight: 600;
+}
+
+/* The group's overflow:hidden clips an outward focus ring, and an accent ring
+   is invisible on the accent fill of the checked segment — draw the 2px ring
+   (docs/04 §6) inside, in on-accent when the segment is checked. */
+.segment:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+}
+
+.segment.active:focus-visible {
+  outline-color: var(--on-accent);
 }
 
 /* Non-blocking banners (S6 save failure / read-only warning). */

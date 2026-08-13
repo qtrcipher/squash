@@ -7,6 +7,7 @@
     "or": "أو",
     "chooseFiles": "اختيار ملفات…",
     "a11yLabel": "أفلت الملفات أو الأرشيفات لضغطها أو استخراجها",
+    "a11yHint": "اضغط Enter لاختيار الملفات بدلًا من ذلك",
     "dragOver": "أفلت للإضافة"
   },
   "actions": {
@@ -33,7 +34,15 @@
     "savedSummary": "{{name}} — {{inBytes}} ← {{outBytes}}، وفّر {{percent}}%",
     "extractedSummary": "{{name}} — تم الاستخراج",
     "announceDone": "اكتمل {{name}}",
-    "announceFailed": "فشل {{name}}"
+    "announceFailed": "فشل {{name}}",
+    "announceProgress": "{{name}} — اكتمل {{percent}}%",
+    "announceProgressEta": "{{name}} — اكتمل {{percent}}%، يتبقى نحو {{seconds}} ث",
+    "progressLabel": "تقدّم {{name}}",
+    "cancelJob": "إلغاء {{name}}",
+    "retryJob": "إعادة محاولة {{name}}",
+    "revealJob": "إظهار {{name}} في المجلد",
+    "copyPathJob": "نسخ مسار {{name}}",
+    "dismissJob": "إخفاء {{name}}"
   },
   "compress": {
     "title": "ضغط",

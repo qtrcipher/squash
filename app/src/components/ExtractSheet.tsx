@@ -45,6 +45,14 @@ export default function ExtractSheet({
     }
   };
 
+  /** Return activates the primary action from the destination field (docs/03 §5). */
+  const submitOnEnter = (event: React.KeyboardEvent) => {
+    if (event.key === "Enter" && destination.trim() !== "" && !submitting) {
+      event.preventDefault();
+      void submit();
+    }
+  };
+
   return (
     <Sheet title={t("extract.title")} onClose={onClose}>
       <p className="sheet-summary">
@@ -63,6 +71,8 @@ export default function ExtractSheet({
             dir="ltr"
             value={destination}
             onChange={(event) => setDestination(event.target.value)}
+            onKeyDown={submitOnEnter}
+            data-autofocus
           />
           <button type="button" className="button" onClick={() => void browse()}>
             {t("actions.browse")}

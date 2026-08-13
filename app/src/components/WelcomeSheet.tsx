@@ -92,6 +92,7 @@ export default function WelcomeSheet({
           id="onboarding-language"
           className="input"
           value={draft.language}
+          data-autofocus
           onChange={(event) => update({ language: event.target.value as Settings["language"] })}
         >
           <option value="en">English</option>
