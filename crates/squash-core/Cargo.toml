@@ -9,6 +9,14 @@ repository.workspace = true
 [dependencies]
 serde.workspace = true
 thiserror.workspace = true
+zip.workspace = true
+tar.workspace = true
+flate2.workspace = true
+zstd.workspace = true
+bzip2.workspace = true
+xz2.workspace = true
+walkdir.workspace = true
 
 [dev-dependencies]
 serde_json.workspace = true
+tempfile.workspace = true

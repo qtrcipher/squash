@@ -1,14 +1,18 @@
 //! Format registry (docs/05 §3–§4).
 //!
 //! Detection is magic-bytes-first, extension as hint (P3 scripters feed it
-//! pipes). Phase 1 implements extension matching; magic-byte tables land with
-//! the format handlers in Phase 2.
+//! pipes). Extension matching is implemented; magic-byte sniffing is a
+//! documented follow-up (handlers receive an explicit `Format` today).
 //!
 //! Adding a format = one module implementing [`FormatHandler`] + registry
 //! entry + fixtures. No changes to the job model, presets, CLI, or GUI.
 
+use crate::error::SquashError;
+use crate::job::Job;
+use crate::progress::{JobStats, ProgressEvent};
 use serde::{Deserialize, Serialize};
 use std::path::Path;
+use std::sync::atomic::{AtomicBool, Ordering};
 
 /// Archive/codec formats, per the strategy table in docs/05 §4.
 /// Serialized names match docs/06 (`zip`, `7z`, `tar.gz`, …).
@@ -116,26 +120,86 @@ impl std::str::FromStr for Format {
     }
 }
 
+/// Context handed to [`FormatHandler`] operations: cancellation flag plus the
+/// progress sink. Handlers must call [`HandlerContext::check_cancelled`]
+/// between entries and report [`ProgressEvent::Advanced`] per entry; the
+/// engine owns `Started`/`Finished`/`Failed`.
+pub struct HandlerContext<'a> {
+    cancelled: &'a AtomicBool,
+    reporter: &'a dyn Fn(ProgressEvent),
+}
+
+impl<'a> HandlerContext<'a> {
+    pub fn new(cancelled: &'a AtomicBool, reporter: &'a dyn Fn(ProgressEvent)) -> Self {
+        Self {
+            cancelled,
+            reporter,
+        }
+    }
+
+    pub fn is_cancelled(&self) -> bool {
+        self.cancelled.load(Ordering::Relaxed)
+    }
+
+    pub fn check_cancelled(&self) -> Result<(), SquashError> {
+        if self.is_cancelled() {
+            Err(SquashError::Cancelled)
+        } else {
+            Ok(())
+        }
+    }
+
+    pub fn report(&self, event: ProgressEvent) {
+        (self.reporter)(event)
+    }
+}
+
 /// One format implementation (e.g. the `zip` crate adapter). Handlers are
-/// registered in [`FormatRegistry`]; they never bypass the core safety layer.
+/// registered in [`FormatRegistry`]; they never bypass the core safety layer
+/// ([`crate::safety`]) on the extraction path.
 ///
-/// Phase 1 defines capabilities only; `list`/`extract`/`create` entry points
-/// arrive in Phase 2 with the handlers themselves.
+/// `create`/`extract` default to [`SquashError::UnsupportedFormat`] so
+/// capability-only handlers (and future extract-only ones) stay one-liners.
 pub trait FormatHandler: Send + Sync {
     fn format(&self) -> Format;
     fn can_extract(&self) -> bool;
     fn can_create(&self) -> bool;
+
+    /// Create `job.destination` from `job.inputs` using `job.preset`.
+    fn create(&self, _job: &Job, _ctx: &HandlerContext) -> Result<JobStats, SquashError> {
+        Err(SquashError::UnsupportedFormat)
+    }
+
+    /// Extract `archive` into `dest_dir` (pre-layout destination; the
+    /// handler applies the docs/03 F3 layout rule via [`crate::layout`]).
+    fn extract(
+        &self,
+        _archive: &Path,
+        _dest_dir: &Path,
+        _ctx: &HandlerContext,
+    ) -> Result<JobStats, SquashError> {
+        Err(SquashError::UnsupportedFormat)
+    }
 }
 
-/// Maps detection results → [`FormatHandler`]. Phase 1: an empty registry
-/// with the register/detect skeleton.
+/// Maps detection results → [`FormatHandler`]. [`FormatRegistry::new`]
+/// pre-registers every handler implemented in this crate; use
+/// [`FormatRegistry::empty`] for tests that need a blank slate.
 #[derive(Default)]
 pub struct FormatRegistry {
     handlers: Vec<Box<dyn FormatHandler>>,
 }
 
 impl FormatRegistry {
+    /// Registry with all built-in handlers (Phase 2: zip + tar family).
     pub fn new() -> Self {
+        let mut reg = Self::empty();
+        crate::formats::register_builtin(&mut reg);
+        reg
+    }
+
+    /// Registry with no handlers (tests, custom wiring).
+    pub fn empty() -> Self {
         Self::default()
     }
 
@@ -151,7 +215,7 @@ impl FormatRegistry {
     }
 
     /// Detect a format from a path hint. Magic-bytes detection takes priority
-    /// once handlers ship (Phase 2); until then this is extension matching.
+    /// once it lands (follow-up); today this is extension matching.
     pub fn detect(&self, hint: &Path) -> Option<Format> {
         let name = hint.file_name()?.to_str()?.to_ascii_lowercase();
         Format::ALL
@@ -192,20 +256,46 @@ mod tests {
         struct Dummy;
         impl FormatHandler for Dummy {
             fn format(&self) -> Format {
-                Format::Zip
+                Format::Rar
             }
             fn can_extract(&self) -> bool {
                 true
             }
             fn can_create(&self) -> bool {
-                true
+                false
             }
         }
-        let mut reg = FormatRegistry::new();
-        assert!(reg.handler_for(Format::Zip).is_none());
+        let mut reg = FormatRegistry::empty();
+        assert!(reg.handler_for(Format::Rar).is_none());
         reg.register(Box::new(Dummy));
-        assert!(reg.handler_for(Format::Zip).is_some());
+        assert!(reg.handler_for(Format::Rar).is_some());
         assert!(reg.handler_for(Format::SevenZ).is_none());
+    }
+
+    #[test]
+    fn new_registry_has_builtin_handlers() {
+        let reg = FormatRegistry::new();
+        // Phase 2 slice: zip + tar family are implemented…
+        for format in [
+            Format::Zip,
+            Format::Tar,
+            Format::TarGz,
+            Format::TarBz2,
+            Format::TarXz,
+            Format::TarZst,
+        ] {
+            assert!(reg.handler_for(format).is_some(), "{format} missing");
+        }
+        // …7z/rar/gz/xz/zst land in later tasks.
+        for format in [
+            Format::SevenZ,
+            Format::Rar,
+            Format::Gz,
+            Format::Xz,
+            Format::Zst,
+        ] {
+            assert!(reg.handler_for(format).is_none(), "{format} unexpected");
+        }
     }
 
     #[test]

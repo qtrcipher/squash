@@ -13,6 +13,13 @@ path = "src/main.rs"
 [dependencies]
 squash-core = { path = "../squash-core" }
 clap = { version = "4", features = ["derive"] }
+serde.workspace = true
+serde_json.workspace = true
+indicatif.workspace = true
 
 [dev-dependencies]
 serde_json.workspace = true
+tempfile.workspace = true
+assert_cmd.workspace = true
+predicates.workspace = true
+zip.workspace = true

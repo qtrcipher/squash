@@ -17,3 +17,21 @@ repository = "https://github.com/qtrcipher/squash"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 thiserror = "2"
+
+# Format backends (docs/05 §4). `zip` is built deflate-only: bzip2/xz/zstd
+# come from the standalone crates below so they aren't linked twice.
+zip = { version = "8", default-features = false, features = ["deflate"] }
+tar = "0.4"
+flate2 = "1"
+zstd = "0.13"
+bzip2 = "0.6"
+xz2 = "0.1"
+walkdir = "2"
+
+# CLI-only.
+indicatif = "0.18"
+
+# Test-only.
+tempfile = "3"
+assert_cmd = "2"
+predicates = "3"

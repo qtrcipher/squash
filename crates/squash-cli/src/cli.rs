@@ -1,8 +1,7 @@
 //! CLI grammar: `squash c` (compress) / `squash x` (extract) — docs/01 §3.5.
 //!
-//! Phase 1 shell: argument parsing and validation only. Both subcommands
-//! currently report "not yet implemented" and exit `exit_codes::INTERNAL`;
-//! real dispatch to `squash_core::Engine` is Phase 2.
+//! Parsing and validation only; dispatch to `squash_core::Engine` lives in
+//! `run.rs`.
 
 use clap::{Parser, Subcommand, ValueEnum};
 use std::path::PathBuf;

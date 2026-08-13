@@ -70,6 +70,7 @@
 
 ## Session log
 Format, newest first, one line per session: `YYYY-MM-DD — what changed — next: <task>`
+- 2026-08-13 — Phase 2 first slice: engine executes jobs (single worker thread, FIFO, cooperative cancel, progress channel); formats zip + tar.gz + tar.zst (create/extract) and tar + tar.bz2 + tar.xz (extract-only) via zip/tar/flate2/zstd/bzip2/xz2; non-bypassable zip-slip sanitizer (`safety.rs`) + docs/03 F3 extract layout rule; CLI `squash c/x` wired to engine with human summary + `--json` JSONL schema + documented exit codes; 84 Rust tests green (unit/integration/CLI e2e incl. crafted zip-slip + corrupt-archive cases) — next: Phase 2 7z + rar handlers, then single-file codecs (gz/xz/zst)
 - 2026-08-13 — Phase 1 complete: public repo qtrcipher/squash, MIT+Apache-2.0, README/CONTRIBUTING; cargo workspace scaffold (core API surface, CLI/bench shells, Tauri+React GUI shell w/ EN/AR RTL + design tokens); CI matrix; brand icon — next: Phase 2 core compress/extract (zip first)
 - 2026-08-13 — added project `AGENTS.md`: house rule — not an iOS app, ignore ASC/Xcode/Firebase instructions — next: Phase 1 repo setup + scaffold
 - 2026-08-13 — Phase 0 complete: wrote docs/01–06 (product scope, market check = Go, UX flows, design direction, Rust+Tauri architecture, local data model); gate passed; 4 owner decisions listed under Phase 0 — next: Phase 1 repo setup (public GitHub repo, LICENSE, README) + project scaffold
