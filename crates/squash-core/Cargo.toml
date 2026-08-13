@@ -16,7 +16,16 @@ rar = ["dep:unrar-sys"]
 
 [dependencies]
 serde.workspace = true
+serde_json.workspace = true
 thiserror.workspace = true
+# Store persistence (docs/06 §3/§5): directory resolution, comment-preserving
+# TOML, locked appends, RFC 3339 timestamps, v4 ids for history/queue entries.
+directories = "6"
+toml = "0.8"
+toml_edit = "0.25"
+fs2 = "0.4"
+time = { version = "0.3", features = ["formatting", "parsing"] }
+uuid = { version = "1", features = ["v4"] }
 zip.workspace = true
 sevenz-rust2.workspace = true
 tar.workspace = true
@@ -28,5 +37,4 @@ walkdir.workspace = true
 unrar-sys = { path = "../unrar-sys", optional = true }
 
 [dev-dependencies]
-serde_json.workspace = true
 tempfile.workspace = true

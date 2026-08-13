@@ -6,17 +6,85 @@
     "prompt": "Drop files or an archive here",
     "or": "or",
     "chooseFiles": "Choose Files…",
-    "a11yLabel": "Drop files or archives to compress or extract"
+    "a11yLabel": "Drop files or archives to compress or extract",
+    "dragOver": "Release to add"
   },
   "actions": {
     "compress": "Compress",
-    "extract": "Extract"
+    "extract": "Extract",
+    "cancel": "Cancel",
+    "close": "Close",
+    "retry": "Retry",
+    "dismiss": "Dismiss",
+    "reveal": "Show in Folder",
+    "copyPath": "Copy Path",
+    "copied": "Copied",
+    "browse": "Browse…"
+  },
+  "queue": {
+    "title": "Job queue",
+    "restoring": "Restoring queue…",
+    "queued": "queued",
+    "running": "running",
+    "done": "done",
+    "failed": "failed",
+    "cancelled": "cancelled",
+    "eta": "about {{seconds}}s left",
+    "savedSummary": "{{name}} — {{inBytes}} → {{outBytes}}, saved {{percent}}%",
+    "extractedSummary": "{{name}} — extracted",
+    "announceDone": "{{name}} finished",
+    "announceFailed": "{{name}} failed"
+  },
+  "compress": {
+    "title": "Compress",
+    "itemsSummary": "Items: {{count}}",
+    "totalSize": "{{size}} total",
+    "format": "Format",
+    "preset": "Preset",
+    "presets": {
+      "fast": "Fast",
+      "balanced": "Balanced",
+      "max": "Max"
+    },
+    "outputName": "Archive name",
+    "outputLocation": "Save to",
+    "batchMode": "Output",
+    "onePerItem": "One archive per item",
+    "combined": "One combined archive",
+    "nameRequired": "Enter a name for the archive.",
+    "nameExists": "Name already exists at destination",
+    "submitFailed": "Couldn't start the job: {{message}}"
+  },
+  "extract": {
+    "title": "Extract",
+    "archivesSummary": "Archives: {{count}}",
+    "destination": "Destination",
+    "autoFolderNote": "Archives with loose files are placed in a new folder named after the archive.",
+    "submitFailed": "Couldn't start the job: {{message}}"
   },
   "settings": {
     "title": "Settings",
     "language": "Language",
     "theme": "Theme",
+    "themes": {
+      "system": "System",
+      "light": "Light",
+      "dark": "Dark"
+    },
     "defaultPreset": "Default preset",
-    "defaultFormat": "Default format"
+    "defaultFormat": "Default format",
+    "saveFailed": "Couldn't save settings.",
+    "readOnlyWarning": "Settings were written by a newer version of Squash and are read-only."
+  },
+  "errors": {
+    "unsupported_format": "This format isn't supported.",
+    "corrupt_archive": "This archive is corrupt — copy or download it again.",
+    "path_traversal_blocked": "This archive tried to write outside the destination folder and was blocked.",
+    "permission_denied": "Permission denied — check the folder's permissions.",
+    "disk_full": "Disk full — free some space, then Retry.",
+    "password_required": "This archive is encrypted. Squash v1 can't open encrypted archives.",
+    "cancelled": "Cancelled.",
+    "internal": "Something went wrong.",
+    "unknown": "Something went wrong."
   }
 }

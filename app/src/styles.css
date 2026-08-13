@@ -204,3 +204,401 @@ html[dir="rtl"] body {
     transition: background-color 150ms ease-out, border-color 150ms ease-out;
   }
 }
+
+/* --- Layout: queue under the drop zone (docs/03 §1) --- */
+
+.content {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+  min-height: 0;
+  overflow-y: auto;
+}
+
+/* Drag-over highlight within 100ms (docs/04 §5). */
+.drop-zone.drag-over {
+  border-color: var(--accent);
+  border-style: solid;
+  background: var(--selection);
+  color: var(--text-primary);
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .drop-zone {
+    transition: background-color 100ms ease-out, border-color 100ms ease-out;
+  }
+}
+
+/* --- S4 job queue (docs/03 §2 S4, docs/04 §6) --- */
+
+.queue {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.queue-title {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 600;
+  line-height: 1.35;
+}
+
+.queue-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+/* Queue row: height 44, 16px icon, badge at the trailing edge. */
+.queue-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 44px;
+  padding: 8px 16px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--surface);
+}
+
+.queue-row.state-failed {
+  border-color: var(--error);
+}
+
+.queue-row.state-failed .job-icon {
+  color: var(--state-failed);
+}
+
+.queue-row.state-finished .job-icon {
+  color: var(--state-done);
+}
+
+.job-icon {
+  flex: none;
+  display: flex;
+  color: var(--text-secondary);
+}
+
+.job-main {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.job-headline {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.job-label {
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.job-meta {
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+
+.job-error {
+  font-size: 12px;
+  color: var(--error);
+}
+
+.job-actions {
+  flex: none;
+  display: flex;
+  gap: 8px;
+}
+
+/* Badges: radius 2, state color paired with text, never color alone. */
+.badge {
+  flex: none;
+  padding: 2px 6px;
+  border-radius: 2px;
+  font-size: 11px;
+  line-height: 1.35;
+  border: 1px solid currentColor;
+}
+
+.badge-queued { color: var(--state-queued); }
+.badge-running { color: var(--state-active); }
+.badge-done { color: var(--state-done); }
+.badge-failed { color: var(--state-failed); }
+.badge-cancelled { color: var(--state-paused); }
+
+.job-progress {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+/* Progress bar: height 6, radius 999, fill follows reading direction. */
+.progress {
+  flex: 1;
+  height: 6px;
+  border-radius: 999px;
+  background: var(--border);
+  overflow: hidden;
+  position: relative;
+}
+
+.progress-fill {
+  position: absolute;
+  inset-inline-start: 0;
+  inset-block: 0;
+  border-radius: 999px;
+  background: var(--state-active);
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .progress-fill {
+    transition: inline-size 150ms ease-out;
+  }
+
+  .progress.indeterminate::after {
+    content: "";
+    position: absolute;
+    inset-block: 0;
+    inline-size: 40%;
+    border-radius: 999px;
+    background: var(--state-active);
+    animation: progress-shimmer 1.2s ease-in-out infinite;
+  }
+
+  @keyframes progress-shimmer {
+    from { inset-inline-start: -40%; }
+    to { inset-inline-start: 100%; }
+  }
+
+  /* Row settle on appearance (docs/04 §5, 200ms). */
+  .queue-row {
+    animation: row-settle 200ms ease-out;
+  }
+
+  @keyframes row-settle {
+    from { opacity: 0; transform: translateY(4px); }
+    to { opacity: 1; transform: none; }
+  }
+
+  .skeleton-block {
+    animation: skeleton-pulse 1.2s ease-in-out infinite;
+  }
+
+  @keyframes skeleton-pulse {
+    0%, 100% { opacity: 0.5; }
+    50% { opacity: 1; }
+  }
+}
+
+/* Launch skeleton rows (docs/03 §2 S1/S4 loading state). */
+.queue-row.skeleton {
+  gap: 12px;
+}
+
+.skeleton-block {
+  display: block;
+  height: 12px;
+  inline-size: 80px;
+  border-radius: 4px;
+  background: var(--border);
+}
+
+.skeleton-block.wide {
+  flex: 1;
+}
+
+/* --- Sheets (S2/S3/S6) --- */
+
+.sheet-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.4);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+}
+
+.sheet {
+  inline-size: min(520px, 100%);
+  max-block-size: 100%;
+  overflow-y: auto;
+  background: var(--surface-raised);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  box-shadow: 0 8px 32px rgba(15, 23, 42, 0.12);
+  padding: 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+:root[data-theme="dark"] .sheet {
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
+}
+
+.sheet-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.sheet-title {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 600;
+  line-height: 1.3;
+}
+
+.sheet-body {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.sheet-summary {
+  margin: 0;
+  color: var(--text-secondary);
+}
+
+.sheet-note {
+  margin: 0;
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+
+.sheet-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+/* Form fields: inputs height 32, radius 4 (docs/04 §6). */
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.field-label {
+  font-weight: 600;
+}
+
+.field-row {
+  display: flex;
+  gap: 8px;
+}
+
+.field-row .input {
+  flex: 1;
+  min-width: 0;
+}
+
+.input {
+  height: 32px;
+  padding: 4px 8px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: var(--surface);
+  color: var(--text-primary);
+  font: inherit;
+}
+
+.input:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+  border-color: var(--accent);
+}
+
+.field-error {
+  margin: 0;
+  font-size: 12px;
+  color: var(--error);
+}
+
+/* Segmented control (format/preset/batch mode). */
+.segmented {
+  display: flex;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  overflow: hidden;
+}
+
+.segment {
+  flex: 1;
+  height: 32px;
+  border: none;
+  border-inline-end: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text-secondary);
+  font: inherit;
+  cursor: pointer;
+}
+
+.segment:last-child {
+  border-inline-end: none;
+}
+
+.segment.active {
+  background: var(--accent);
+  color: var(--on-accent);
+  font-weight: 600;
+}
+
+/* Non-blocking banners (S6 save failure / read-only warning). */
+.banner {
+  margin: 0;
+  padding: 8px 12px;
+  border-radius: 6px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  justify-content: space-between;
+}
+
+.banner.error {
+  border: 1px solid var(--error);
+  color: var(--error);
+}
+
+.banner.warning {
+  border: 1px solid var(--warning);
+  color: var(--warning);
+}
+
+/* Compact + CTA button heights (docs/04 §6: 28 compact, 40 primary CTA). */
+.button.small {
+  height: 28px;
+  padding: 4px 8px;
+}
+
+.button.cta {
+  height: 40px;
+  padding: 8px 16px;
+}
+
+.button:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.visually-hidden {
+  position: absolute;
+  inline-size: 1px;
+  block-size: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  clip-path: inset(50%);
+  white-space: nowrap;
+}

@@ -134,7 +134,7 @@ pub(crate) fn walk_inputs(inputs: &[PathBuf]) -> Result<Vec<WalkEntry>, SquashEr
 }
 
 /// Total input bytes for the compress `Started` estimate.
-pub(crate) fn inputs_total_bytes(inputs: &[PathBuf]) -> Option<u64> {
+pub fn inputs_total_bytes(inputs: &[PathBuf]) -> Option<u64> {
     walk_inputs(inputs)
         .ok()
         .map(|entries| entries.iter().map(|e| e.len).sum())

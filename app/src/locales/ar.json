@@ -6,17 +6,85 @@
     "prompt": "أفلت الملفات أو أرشيفًا هنا",
     "or": "أو",
     "chooseFiles": "اختيار ملفات…",
-    "a11yLabel": "أفلت الملفات أو الأرشيفات لضغطها أو استخراجها"
+    "a11yLabel": "أفلت الملفات أو الأرشيفات لضغطها أو استخراجها",
+    "dragOver": "أفلت للإضافة"
   },
   "actions": {
     "compress": "ضغط",
-    "extract": "استخراج"
+    "extract": "استخراج",
+    "cancel": "إلغاء",
+    "close": "إغلاق",
+    "retry": "إعادة المحاولة",
+    "dismiss": "إخفاء",
+    "reveal": "إظهار في المجلد",
+    "copyPath": "نسخ المسار",
+    "copied": "تم النسخ",
+    "browse": "استعراض…"
+  },
+  "queue": {
+    "title": "قائمة المهام",
+    "restoring": "جارٍ استعادة القائمة…",
+    "queued": "في الانتظار",
+    "running": "قيد التنفيذ",
+    "done": "اكتمل",
+    "failed": "فشل",
+    "cancelled": "أُلغي",
+    "eta": "يتبقى نحو {{seconds}} ث",
+    "savedSummary": "{{name}} — {{inBytes}} ← {{outBytes}}، وفّر {{percent}}%",
+    "extractedSummary": "{{name}} — تم الاستخراج",
+    "announceDone": "اكتمل {{name}}",
+    "announceFailed": "فشل {{name}}"
+  },
+  "compress": {
+    "title": "ضغط",
+    "itemsSummary": "العناصر: {{count}}",
+    "totalSize": "{{size}} إجمالًا",
+    "format": "التنسيق",
+    "preset": "الإعداد المسبق",
+    "presets": {
+      "fast": "سريع",
+      "balanced": "متوازن",
+      "max": "أقصى ضغط"
+    },
+    "outputName": "اسم الأرشيف",
+    "outputLocation": "الحفظ في",
+    "batchMode": "الإخراج",
+    "onePerItem": "أرشيف واحد لكل عنصر",
+    "combined": "أرشيف واحد مجمّع",
+    "nameRequired": "أدخل اسمًا للأرشيف.",
+    "nameExists": "الاسم موجود مسبقًا في الوجهة",
+    "submitFailed": "تعذّر بدء المهمة: {{message}}"
+  },
+  "extract": {
+    "title": "استخراج",
+    "archivesSummary": "الأرشيفات: {{count}}",
+    "destination": "الوجهة",
+    "autoFolderNote": "تُوضع الأرشيفات ذات الملفات المبعثرة في مجلد جديد يحمل اسم الأرشيف.",
+    "submitFailed": "تعذّر بدء المهمة: {{message}}"
   },
   "settings": {
     "title": "الإعدادات",
     "language": "اللغة",
     "theme": "المظهر",
+    "themes": {
+      "system": "النظام",
+      "light": "فاتح",
+      "dark": "داكن"
+    },
     "defaultPreset": "الإعداد المسبق الافتراضي",
-    "defaultFormat": "التنسيق الافتراضي"
+    "defaultFormat": "التنسيق الافتراضي",
+    "saveFailed": "تعذّر حفظ الإعدادات.",
+    "readOnlyWarning": "كُتبت الإعدادات بإصدار أحدث من Squash وهي للقراءة فقط."
+  },
+  "errors": {
+    "unsupported_format": "هذا التنسيق غير مدعوم.",
+    "corrupt_archive": "هذا الأرشيف تالف — انسخه أو نزّله من جديد.",
+    "path_traversal_blocked": "حاول هذا الأرشيف الكتابة خارج مجلد الوجهة وتم منعه.",
+    "permission_denied": "تم رفض الإذن — تحقق من أذونات المجلد.",
+    "disk_full": "القرص ممتلئ — حرّر بعض المساحة ثم أعد المحاولة.",
+    "password_required": "هذا الأرشيف مشفّر. لا يستطيع Squash v1 فتح الأرشيفات المشفّرة.",
+    "cancelled": "أُلغيت المهمة.",
+    "internal": "حدث خطأ ما.",
+    "unknown": "حدث خطأ ما."
   }
 }
