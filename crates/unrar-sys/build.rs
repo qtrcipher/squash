@@ -132,6 +132,14 @@ fn main() {
         // Psapi and wbemuuid pull themselves in via pragmas in os.hpp; motw.cpp
         // needs no extra libs (plain File I/O, no COM/urlmon).
         println!("cargo:rustc-link-lib=shell32");
+        // advapi32 covers the rest of the Windows system API unrar calls with
+        // no self-linking pragma: registry (RegOpenKeyExW/RegQueryValueExW/
+        // RegCloseKey in pathfn.cpp), token/privilege helpers (OpenProcessToken,
+        // AdjustTokenPrivileges, AllocateAndInitializeSid, CheckTokenMembership,
+        // FreeSid, LookupPrivilegeValueW in system.cpp), classic CryptoAPI
+        // (CryptAcquireContextW/CryptGenRandom/CryptReleaseContext in crypt.cpp)
+        // and SetFileSecurityW (extinfo.cpp).
+        println!("cargo:rustc-link-lib=advapi32");
     }
 
     // Rebuild when the vendored tree or the shim changes.
