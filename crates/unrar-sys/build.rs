@@ -79,6 +79,20 @@ const OBJECTS: &[&str] = &[
 /// `LIB_OBJ` from the makefile, minus the OBJECTS overlap.
 const LIB_ONLY: &[&str] = &["filestr", "scantree", "dll", "qopen"];
 
+/// Windows-only units the unix makefile `lib` list does not know about.
+///
+/// Taken from the authoritative Windows source list,
+/// vendor/unrar/UnRARDll.vcxproj (`<ClCompile Include="isnt.cpp" />` and
+/// `"motw.cpp"`). `isnt.cpp` defines `WinNT()` / `IsWindows11OrGreater()`
+/// (used by extract.cpp, timefn.cpp, consio.cpp, pathfn.cpp, threadpool.cpp)
+/// and `motw.cpp` defines the `MarkOfTheWeb::*` methods (Mark of the Web
+/// propagation, used by extract.cpp) — without these the MSVC link fails
+/// with unresolved externals. `ulinks.cpp` stays excluded: the vcxproj does
+/// not list it and extinfo.cpp only `#include`s it under `_WIN_UNIX`.
+/// `rs.cpp` is listed by the vcxproj but is not in the makefile `lib` list
+/// and no unresolved symbol maps to it, so it is deliberately left out.
+const WINDOWS_ONLY: &[&str] = &["isnt", "motw"];
+
 fn main() {
     let vendor = strip_verbatim_prefix(
         &PathBuf::from(std::env::var("CARGO_MANIFEST_DIR").unwrap())
@@ -103,8 +117,22 @@ fn main() {
     for unit in OBJECTS.iter().chain(LIB_ONLY) {
         build.file(vendor.join(format!("{unit}.cpp")));
     }
+    if std::env::var("CARGO_CFG_TARGET_OS").as_deref() == Ok("windows") {
+        for unit in WINDOWS_ONLY {
+            build.file(vendor.join(format!("{unit}.cpp")));
+        }
+    }
     build.file("shim/shim.cpp");
     build.compile("squash_unrar");
+
+    if std::env::var("CARGO_CFG_TARGET_OS").as_deref() == Ok("windows") {
+        // pathfn.cpp calls SHGetSpecialFolderLocation / SHGetPathFromIDListW
+        // (GetAppDataPath) — shell API with no `#pragma comment(lib)` in the
+        // vendored source, so it must be linked explicitly. Shlwapi, PowrProf,
+        // Psapi and wbemuuid pull themselves in via pragmas in os.hpp; motw.cpp
+        // needs no extra libs (plain File I/O, no COM/urlmon).
+        println!("cargo:rustc-link-lib=shell32");
+    }
 
     // Rebuild when the vendored tree or the shim changes.
     println!("cargo:rerun-if-changed=shim/shim.cpp");
