@@ -1,0 +1,22 @@
+{
+  "app": {
+    "title": "Squash"
+  },
+  "dropZone": {
+    "prompt": "أفلت الملفات أو أرشيفًا هنا",
+    "or": "أو",
+    "chooseFiles": "اختيار ملفات…",
+    "a11yLabel": "أفلت الملفات أو الأرشيفات لضغطها أو استخراجها"
+  },
+  "actions": {
+    "compress": "ضغط",
+    "extract": "استخراج"
+  },
+  "settings": {
+    "title": "الإعدادات",
+    "language": "اللغة",
+    "theme": "المظهر",
+    "defaultPreset": "الإعداد المسبق الافتراضي",
+    "defaultFormat": "التنسيق الافتراضي"
+  }
+}

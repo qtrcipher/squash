@@ -1,0 +1,22 @@
+{
+  "app": {
+    "title": "Squash"
+  },
+  "dropZone": {
+    "prompt": "Drop files or an archive here",
+    "or": "or",
+    "chooseFiles": "Choose Files…",
+    "a11yLabel": "Drop files or archives to compress or extract"
+  },
+  "actions": {
+    "compress": "Compress",
+    "extract": "Extract"
+  },
+  "settings": {
+    "title": "Settings",
+    "language": "Language",
+    "theme": "Theme",
+    "defaultPreset": "Default preset",
+    "defaultFormat": "Default format"
+  }
+}

@@ -30,11 +30,11 @@
 > 4. User-created presets: docs 01/03 say "exactly 3 presets" but doc 06 models user presets — doc 06 proposal: GUI lists them, no preset editor in v1. Sign off or adjust.
 
 ## Phase 1 — Foundation
-- [ ] Public GitHub repo; LICENSE (OSS), README, CONTRIBUTING; `.gitignore` covers secrets BEFORE first commit
-- [ ] Project scaffold: shared compression core lib + CLI shell + desktop GUI shell
-- [ ] CI: GitHub Actions build/test matrix (macOS / Linux / Windows) — `release-automation`
-- [ ] i18n scaffold EN/AR (RTL) from day one — `i18n-patterns` · `arabic-localization`
-- [ ] App icon — `icon-design-guide` · `art-asset-designer` agent
+- [x] Public GitHub repo; LICENSE (OSS), README, CONTRIBUTING; `.gitignore` covers secrets BEFORE first commit (done 2026-08-13: github.com/qtrcipher/squash, MIT+Apache-2.0 dual)
+- [x] Project scaffold: shared compression core lib + CLI shell + desktop GUI shell (done 2026-08-13: cargo workspace, `squash-core` API surface + store types, clap CLI shell, Tauri v2 + React shell; 24 Rust + 2 frontend tests green)
+- [x] CI: GitHub Actions build/test matrix (macOS / Linux / Windows) — `release-automation` (done 2026-08-13: `.github/workflows/ci.yml`, fmt+clippy+test × 3 OS, frontend job, `[ci skip]` honored on pushes)
+- [x] i18n scaffold EN/AR (RTL) from day one — `i18n-patterns` · `arabic-localization` (done 2026-08-13: react-i18next, en/ar locales w/ MSA Arabic, `dir="rtl"` switch, key-parity test)
+- [x] App icon — `icon-design-guide` · `art-asset-designer` agent (done 2026-08-13: pressed-package mark, `assets/brand/` + full Tauri icon set)
 - [x] Scaffold this file into the repo as `PROGRESS.md` — `ios-ship-gate` (template in its references/)
 
 ## Phase 2 — Features
@@ -70,6 +70,7 @@
 
 ## Session log
 Format, newest first, one line per session: `YYYY-MM-DD — what changed — next: <task>`
+- 2026-08-13 — Phase 1 complete: public repo qtrcipher/squash, MIT+Apache-2.0, README/CONTRIBUTING; cargo workspace scaffold (core API surface, CLI/bench shells, Tauri+React GUI shell w/ EN/AR RTL + design tokens); CI matrix; brand icon — next: Phase 2 core compress/extract (zip first)
 - 2026-08-13 — added project `AGENTS.md`: house rule — not an iOS app, ignore ASC/Xcode/Firebase instructions — next: Phase 1 repo setup + scaffold
 - 2026-08-13 — Phase 0 complete: wrote docs/01–06 (product scope, market check = Go, UX flows, design direction, Rust+Tauri architecture, local data model); gate passed; 4 owner decisions listed under Phase 0 — next: Phase 1 repo setup (public GitHub repo, LICENSE, README) + project scaffold
 - 2026-08-13 — scaffolded this roadmap from ios-ship-gate template (adapted: cross-platform OSS, app named "Squash", desktop GUI + CLI) — next: Phase 0 product scope + market check

@@ -1,0 +1,14 @@
+[package]
+name = "squash-bench"
+description = "Squash benchmark harness vs 7-Zip (docs/05 §6)"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[[bin]]
+name = "squash-bench"
+path = "src/main.rs"
+
+[dependencies]
+squash-core = { path = "../squash-core" }

@@ -1,0 +1,206 @@
+/* Squash design tokens — docs/04-design-direction.md (locked).
+   Platform-native flat: 1px borders, no resting shadows, one accent.
+   Light/dark via CSS variables; system default + `data-theme` override. */
+
+:root {
+  --accent: #2563eb;
+  --accent-hover: #1d4ed8;
+  --on-accent: #ffffff;
+  --bg-window: #f8fafc;
+  --surface: #ffffff;
+  --surface-raised: #ffffff;
+  --border: #e2e8f0;
+  --text-primary: #0f172a;
+  --text-secondary: #475569;
+  --text-disabled: #94a3b8;
+  --success: #15803d;
+  --warning: #b45309;
+  --error: #dc2626;
+  --selection: #dbeafe;
+
+  /* Job/progress state colors (docs/04 §2) */
+  --state-queued: #64748b;
+  --state-active: #2563eb;
+  --state-paused: #b45309;
+  --state-done: #15803d;
+  --state-failed: #dc2626;
+  --state-skipped: #7c3aed;
+
+  color-scheme: light;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --accent: #60a5fa;
+    --accent-hover: #3b82f6;
+    --on-accent: #0f172a;
+    --bg-window: #0f172a;
+    --surface: #1e293b;
+    --surface-raised: #273549;
+    --border: #334155;
+    --text-primary: #f1f5f9;
+    --text-secondary: #94a3b8;
+    --text-disabled: #64748b;
+    --success: #4ade80;
+    --warning: #fbbf24;
+    --error: #f87171;
+    --selection: rgba(29, 78, 216, 0.4);
+
+    --state-queued: #94a3b8;
+    --state-active: #60a5fa;
+    --state-paused: #fbbf24;
+    --state-done: #4ade80;
+    --state-failed: #f87171;
+    --state-skipped: #a78bfa;
+
+    color-scheme: dark;
+  }
+}
+
+:root[data-theme="dark"] {
+  --accent: #60a5fa;
+  --accent-hover: #3b82f6;
+  --on-accent: #0f172a;
+  --bg-window: #0f172a;
+  --surface: #1e293b;
+  --surface-raised: #273549;
+  --border: #334155;
+  --text-primary: #f1f5f9;
+  --text-secondary: #94a3b8;
+  --text-disabled: #64748b;
+  --success: #4ade80;
+  --warning: #fbbf24;
+  --error: #f87171;
+  --selection: rgba(29, 78, 216, 0.4);
+
+  --state-queued: #94a3b8;
+  --state-active: #60a5fa;
+  --state-paused: #fbbf24;
+  --state-done: #4ade80;
+  --state-failed: #f87171;
+  --state-skipped: #a78bfa;
+
+  color-scheme: dark;
+}
+
+/* Spacing (4pt grid): 4 8 12 16 20 24 32 48. Radii ≤ 8 (999 for pills). */
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+  margin: 0;
+}
+
+body {
+  font-family:
+    -apple-system, "Segoe UI Variable Text", Cantarell, "Noto Sans", Ubuntu,
+    system-ui, "Noto Sans Arabic", sans-serif;
+  font-size: 13px;
+  line-height: 1.45;
+  background: var(--bg-window);
+  color: var(--text-primary);
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Arabic renders one size step up at Body and below (docs/04 §3). */
+html[dir="rtl"] body {
+  font-size: 14px;
+}
+
+.mono {
+  font-family: "JetBrains Mono", ui-monospace, "SF Mono", "Cascadia Mono",
+    "Noto Sans Mono", monospace;
+  font-variant-numeric: tabular-nums;
+}
+
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+/* --- S1 main window shell (docs/03 §1) --- */
+
+.app-shell {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+
+.toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 16px;
+  border-bottom: 1px solid var(--border);
+}
+
+.app-name {
+  font-size: 15px;
+  font-weight: 600;
+  line-height: 1.35;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.main-area {
+  flex: 1;
+  display: flex;
+  padding: 24px;
+}
+
+.drop-zone {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  border: 1px dashed var(--border);
+  border-radius: 8px;
+  background: var(--surface);
+  color: var(--text-secondary);
+  text-align: center;
+  padding: 48px;
+}
+
+.drop-zone .prompt {
+  font-size: 24px;
+  font-weight: 700;
+  line-height: 1.25;
+  color: var(--text-primary);
+}
+
+/* Buttons: height 32 default, radius 6, padding 8×12 (docs/04 §6). */
+.button {
+  height: 32px;
+  padding: 8px 12px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--surface);
+  color: var(--text-primary);
+  font: inherit;
+  cursor: pointer;
+}
+
+.button.primary {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--on-accent);
+  font-weight: 600;
+}
+
+.button.primary:hover {
+  background: var(--accent-hover);
+  border-color: var(--accent-hover);
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .button {
+    transition: background-color 150ms ease-out, border-color 150ms ease-out;
+  }
+}

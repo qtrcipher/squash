@@ -1,0 +1,19 @@
+[workspace]
+resolver = "2"
+members = [
+    "crates/squash-core",
+    "crates/squash-cli",
+    "crates/squash-bench",
+    "app/src-tauri",
+]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2021"
+license = "MIT OR Apache-2.0"
+repository = "https://github.com/qtrcipher/squash"
+
+[workspace.dependencies]
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+thiserror = "2"

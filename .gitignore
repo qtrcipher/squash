@@ -22,3 +22,10 @@ __pycache__/
 
 # Logs
 *.log
+
+# Frontend / Tauri
+app/dist/
+app/src-tauri/target/
+app/src-tauri/gen/
+*.tsbuildinfo
+.vite/

@@ -42,7 +42,7 @@ Requirement (doc 01 §6, fixed): native feel, small binaries, full RTL Arabic, t
 | egui / Slint | **RTL text shaping immature** — egui's bidi support is partial; this is a hard product requirement, not a nice-to-have | Tiny | Non-native widgets | Native Rust | Rejected: RTL risk on a hard requirement |
 | Native-per-OS (SwiftUI/WinUI/GTK) | Best per OS | Small | Best | 3× GUI code, 3× state-management bugs, defeats the cross-platform-parity thesis (doc 02 §4) | Rejected: 3× the work |
 
-**Trade-offs accepted:** (a) Linux depends on system WebKitGTK — mitigated by CI testing on Ubuntu LTS and the planned Flatpak bundle; (b) webview version skew — mitigated by testing on the oldest supported webview per OS; (c) GUI logic lives in TypeScript, so frontend discipline (strict TS, typed command contracts) is required. Frontend stack within Tauri: plain TypeScript + a small framework (Svelte or Solid — final pick deferred to the frontend phase, no architecture impact).
+**Trade-offs accepted:** (a) Linux depends on system WebKitGTK — mitigated by CI testing on Ubuntu LTS and the planned Flatpak bundle; (b) webview version skew — mitigated by testing on the oldest supported webview per OS; (c) GUI logic lives in TypeScript, so frontend discipline (strict TS, typed command contracts) is required. Frontend stack within Tauri: **React 18 + TypeScript + Vite** (decided 2026-08-13 during scaffold — the fleet's house web stack; supersedes the earlier Svelte/Solid deferral).
 
 **Core consumption:** no FFI, no subprocess, no IPC serialization layer to design. The GUI is a Tauri app whose Rust host side depends on the `squash-core` crate directly; commands are thin async wrappers mapping GUI events to the core's job API. The CLI depends on the same crate. One core, two thin shells — the product's reason to exist (doc 01 §3.1).
 
@@ -54,8 +54,7 @@ squash/
 │   ├── squash-core/        # the library: formats, jobs, presets, progress, errors
 │   ├── squash-cli/         # `squash` binary: clap CLI, --json, exit codes
 │   └── squash-bench/       # benchmark harness vs 7-Zip (§6)
-├── apps/
-│   └── gui/                # Tauri v2 app (Rust host + TS frontend)
+├── app/                    # Tauri v2 app (Rust host in src-tauri/ + React/TS frontend)
 ├── fixtures/               # shared test corpus: per-format archives, zip-slip
 │   │                       # attacks, Unicode/Arabic filenames, corrupt files
 ├── benches/corpus/         # standard benchmark corpus (separate from fixtures)
@@ -103,7 +102,7 @@ Architectural implications only; mechanics belong to release-automation.
 |---|---|---|---|
 | Unit | 70% | `squash-core` (`#[cfg(test)]` per module) | path sanitizer (the security-critical one), preset table, format detection, error taxonomy mapping, per-codec round-trips on in-memory buffers |
 | Integration | 20% | `squash-core/tests/` + `squash-cli/tests/` against `fixtures/` | end-to-end extract/create per format on fixture archives; CLI contract tests: exit codes, `--json` schema stability, piping; **golden round-trip suite**: create with Squash → verify readable by upstream `7zz`/`bsdtar` and vice versa |
-| E2E | 10% | `apps/gui` smoke tests (`tauri-driver`/WebDriver) + benchmark harness | GUI happy paths (drop → compress → progress → done) per OS in CI; RTL visual screenshot check |
+| E2E | 10% | `app/` smoke tests (`tauri-driver`/WebDriver) + benchmark harness | GUI happy paths (drop → compress → progress → done) per OS in CI; RTL visual screenshot check |
 
 - **Benchmark harness** (`squash-bench`): runs the standard corpus through Squash and `7zz` (installed in CI), records ratio + wall time, fails CI on regression > 2%, and publishes results as release-page tables — this *is* product requirement §3.8, not a nicety. Corpus is fixed, versioned, and documented so numbers are reproducible.
 - **Fuzzing:** `cargo-fuzz` targets on every extraction entry point + the path sanitizer; seeded with `fixtures/`; run continuously (weekly CI cron, OSS-Fuzz eligibility post-launch). Given that incumbent RCEs drive user switching (doc 02 §2), the fuzz story is marketing as much as engineering.

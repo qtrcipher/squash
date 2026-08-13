@@ -1,0 +1,18 @@
+[package]
+name = "squash-cli"
+description = "Squash command-line interface (`squash` binary)"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[[bin]]
+name = "squash"
+path = "src/main.rs"
+
+[dependencies]
+squash-core = { path = "../squash-core" }
+clap = { version = "4", features = ["derive"] }
+
+[dev-dependencies]
+serde_json.workspace = true

@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <!-- Squash brand mark: a package gently pressed by two opposing chevrons.
+       Monochrome-first: the glyph is a single flat color knocked out of the tile. -->
+  <rect width="512" height="512" rx="116" fill="#2563EB"/>
+  <g fill="#FFFFFF">
+    <!-- top chevron (pressing down) -->
+    <path d="M172 112 L256 168 L340 112" fill="none" stroke="#FFFFFF" stroke-width="40" stroke-linecap="round" stroke-linejoin="round"/>
+    <!-- bottom chevron (pressing up) -->
+    <path d="M172 400 L256 344 L340 400" fill="none" stroke="#FFFFFF" stroke-width="40" stroke-linecap="round" stroke-linejoin="round"/>
+    <!-- the pressed box: deliberately wider than tall -->
+    <rect x="148" y="200" width="216" height="112" rx="14"/>
+  </g>
+  <!-- packing tape: reads "package" at large sizes, merges to a slit at small -->
+  <rect x="238" y="200" width="36" height="58" fill="#2563EB"/>
+</svg>

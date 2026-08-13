@@ -1,0 +1,14 @@
+[package]
+name = "squash-core"
+description = "Squash shared compression core: jobs, formats, presets, progress, errors, store types"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[dependencies]
+serde.workspace = true
+thiserror.workspace = true
+
+[dev-dependencies]
+serde_json.workspace = true

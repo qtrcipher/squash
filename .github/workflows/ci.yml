@@ -1,0 +1,84 @@
+# Squash CI — build + test only.
+# Release pipelines, signing, and artifact packaging are later phases
+# (see docs/05-architecture.md §5); this workflow intentionally stays lean.
+#
+# House rule: CI minutes are metered. Routine docs/session-end commits carry
+# `[ci skip]` in the commit message (AGENTS.md); push jobs honor it below.
+# PRs always run — `github.event.head_commit` is absent on pull_request events.
+
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  rust:
+    name: Rust (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    if: github.event_name == 'pull_request' || !contains(github.event.head_commit.message, '[ci skip]')
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-latest, ubuntu-latest, windows-latest]
+    steps:
+      - uses: actions/checkout@v4
+
+      # Tauri v2 system deps, needed because the workspace includes the
+      # Tauri host crate (app/src-tauri). Per https://v2.tauri.app/start/prerequisites/
+      - name: Install Tauri Linux system dependencies
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libwebkit2gtk-4.1-dev \
+            libayatana-appindicator3-dev \
+            librsvg2-dev \
+            libssl-dev \
+            libxdo-dev \
+            patchelf
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+
+      - name: Cache cargo
+        uses: Swatinem/rust-cache@v2
+
+      - name: Check formatting
+        run: cargo fmt --all -- --check
+
+      - name: Clippy
+        run: cargo clippy --workspace --all-targets -- -D warnings
+
+      - name: Test
+        run: cargo test --workspace
+
+  frontend:
+    name: Frontend (app/)
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request' || !contains(github.event.head_commit.message, '[ci skip]')
+    defaults:
+      run:
+        working-directory: app
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: app/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build
+        run: npm run build
+
+      - name: Test
+        run: npm test
