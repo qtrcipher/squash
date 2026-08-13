@@ -14,12 +14,18 @@
 > confirm before redoing it; update this file and commit at session end.
 
 ## Phase 0 — Plan (GATE: no implementation code until every item below is checked)
-- [ ] Problem, users, MVP scope, success metrics → `docs/01-product-scope.md` — `product-strategist` agent · `product-frameworks` · `brainstorming`
-- [ ] Market check: competitors, demand, keywords → `docs/02-market-check.md` — `app-market-research`
-- [ ] Screens, flows, all four UI states per screen → `docs/03-ux-flows.md` — `ux-designer` agent
-- [ ] Design direction: style, palette, typography → `docs/04-design-direction.md` — `ui-ux-pro-max`
-- [ ] Architecture + module plan → `docs/05-architecture.md` — `technical-architect` agent
-- [ ] Data model: config, presets, job history (local-only, no backend) → `docs/06-data-model.md` — `database-design-patterns`
+- [x] Problem, users, MVP scope, success metrics → `docs/01-product-scope.md` — `product-strategist` agent · `product-frameworks` · `brainstorming` (done 2026-08-13; 4 open questions await owner)
+- [x] Market check: competitors, demand, keywords → `docs/02-market-check.md` — `app-market-research` (done 2026-08-13; verdict: Go)
+- [x] Screens, flows, all four UI states per screen → `docs/03-ux-flows.md` — `ux-designer` agent (done 2026-08-13)
+- [x] Design direction: style, palette, typography → `docs/04-design-direction.md` — `ui-ux-pro-max` (done 2026-08-13; platform-native flat, tokens locked)
+- [x] Architecture + module plan → `docs/05-architecture.md` — `technical-architect` agent (done 2026-08-13; Rust core + Tauri v2 GUI)
+- [x] Data model: config, presets, job history (local-only, no backend) → `docs/06-data-model.md` — `database-design-patterns` (done 2026-08-13; TOML/JSONL local stores)
+
+> **Phase 0 gate: PASSED 2026-08-13.** Open owner decisions (do not block the gate, resolve before the phases they touch):
+> 1. RAR messaging sign-off: "extracts RAR, never creates it" (RARLAB license) — touches Phase 2/6 copy.
+> 2. Opt-in crash reporting posture — touches Phase 3 (currently unmodeled in data model).
+> 3. Donations from day one vs wait — touches Phase 6.
+> 4. User-created presets: docs 01/03 say "exactly 3 presets" but doc 06 models user presets — doc 06 proposal: GUI lists them, no preset editor in v1. Sign off or adjust.
 
 ## Phase 1 — Foundation
 - [ ] Public GitHub repo; LICENSE (OSS), README, CONTRIBUTING; `.gitignore` covers secrets BEFORE first commit
@@ -62,4 +68,5 @@
 
 ## Session log
 Format, newest first, one line per session: `YYYY-MM-DD — what changed — next: <task>`
+- 2026-08-13 — Phase 0 complete: wrote docs/01–06 (product scope, market check = Go, UX flows, design direction, Rust+Tauri architecture, local data model); gate passed; 4 owner decisions listed under Phase 0 — next: Phase 1 repo setup (public GitHub repo, LICENSE, README) + project scaffold
 - 2026-08-13 — scaffolded this roadmap from ios-ship-gate template (adapted: cross-platform OSS, app named "Squash", desktop GUI + CLI) — next: Phase 0 product scope + market check
