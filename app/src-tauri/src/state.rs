@@ -21,6 +21,13 @@ use std::sync::{Arc, Mutex};
 /// Tauri event name for job progress (typed payload: [`ProgressPayload`]).
 pub const PROGRESS_EVENT: &str = "squash://job-progress";
 
+/// Tauri event nudging the frontend to drain OS "open with" paths (docs/03
+/// F6). The payload is empty on purpose: the frontend pulls the paths via
+/// the `take_pending_open_paths` command, so a cold-start event that fires
+/// before the webview subscribes is never lost and a warm-start event never
+/// duplicates what the launch-time pull already drained.
+pub const OPEN_PATHS_EVENT: &str = "squash://open-paths";
+
 /// Compact history every N appends (docs/06 §5: "after every 50 appends").
 const COMPACT_EVERY_APPENDS: u32 = 50;
 
@@ -164,6 +171,9 @@ pub struct AppState {
     queue_writable: AtomicBool,
     /// Queue as loaded at startup, waiting for [`AppState::restore_queue`].
     pending_restore: Mutex<Option<PersistedQueue>>,
+    /// Paths handed over by the OS (docs/03 F6: argv, `RunEvent::Opened`,
+    /// second-instance launch), waiting for the frontend to drain them.
+    pending_open: Mutex<Vec<String>>,
     appends_since_compact: AtomicU32,
 }
 
@@ -199,6 +209,7 @@ impl AppState {
             settings_warning: Mutex::new(settings_outcome.warning),
             queue_writable: AtomicBool::new(queue_writable),
             pending_restore: Mutex::new(pending_restore),
+            pending_open: Mutex::new(Vec::new()),
             appends_since_compact: AtomicU32::new(0),
         }
     }
@@ -309,6 +320,20 @@ impl AppState {
             .expect("slots lock")
             .get(id)
             .map(|s| s.handle.clone())
+    }
+
+    // --- OS "open with" handoff (docs/03 F6) ------------------------------
+
+    /// Queue paths the OS passed in (argv / `RunEvent::Opened` / second
+    /// instance) for the frontend to route to S2/S3.
+    pub fn queue_open_paths(&self, paths: Vec<String>) {
+        self.pending_open.lock().expect("open lock").extend(paths);
+    }
+
+    /// Drain the queued open paths. Pull-based so cold-start events that
+    /// fired before the webview subscribed are still delivered.
+    pub fn take_pending_open_paths(&self) -> Vec<String> {
+        std::mem::take(&mut *self.pending_open.lock().expect("open lock"))
     }
 
     // --- restore (docs/06 §2 "Queued job") --------------------------------
@@ -821,6 +846,21 @@ mod tests {
             | ProgressPayload::Finished { id: e, .. }
             | ProgressPayload::Failed { id: e, .. } => *e == id,
         }));
+    }
+
+    #[test]
+    fn open_paths_queue_drains_once() {
+        let (_tmp, dirs) = test_dirs();
+        let state = AppState::new(dirs);
+        assert!(state.take_pending_open_paths().is_empty());
+        state.queue_open_paths(vec!["/tmp/a.zip".to_string()]);
+        state.queue_open_paths(vec!["/tmp/b.tar.gz".to_string(), "/tmp/c".to_string()]);
+        assert_eq!(
+            state.take_pending_open_paths(),
+            vec!["/tmp/a.zip", "/tmp/b.tar.gz", "/tmp/c"]
+        );
+        // Drained: a second pull returns nothing (no duplicate sheets).
+        assert!(state.take_pending_open_paths().is_empty());
     }
 
     #[test]

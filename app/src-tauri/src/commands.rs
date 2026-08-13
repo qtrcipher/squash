@@ -178,10 +178,19 @@ pub struct ClassifiedPaths {
 /// (docs/03 F5). Directories are never archives.
 #[tauri::command]
 pub fn classify_paths(state: State<'_, SharedState>, paths: Vec<String>) -> ClassifiedPaths {
-    let registry = state.engine().registry();
+    classify(state.engine().registry(), &paths)
+}
+
+/// The docs/03 F5/F6 routing decision: non-directory paths the registry
+/// detects by extension are archives (frontend routes them to S3/extract);
+/// everything else is a compressible item (→ S2/compress).
+pub(crate) fn classify(
+    registry: &squash_core::format::FormatRegistry,
+    paths: &[String],
+) -> ClassifiedPaths {
     let mut archives = Vec::new();
     let mut items = Vec::new();
-    for p in &paths {
+    for p in paths {
         let path = PathBuf::from(p);
         if !path.is_dir() {
             if let Some(format) = registry.detect(&path) {
@@ -207,6 +216,15 @@ pub fn classify_paths(state: State<'_, SharedState>, paths: Vec<String>) -> Clas
     }
 }
 
+/// OS "open with" handoff (docs/03 F6): drain the paths queued from argv /
+/// `RunEvent::Opened` / second-instance launches. The frontend pulls this on
+/// launch and on every [`crate::state::OPEN_PATHS_EVENT`] nudge, then routes
+/// the paths through `classify_paths`.
+#[tauri::command]
+pub fn take_pending_open_paths(state: State<'_, SharedState>) -> Vec<String> {
+    state.take_pending_open_paths()
+}
+
 /// S2 validation: does this output path already exist? (docs/03 S2 error state)
 #[tauri::command]
 pub fn path_exists(path: String) -> bool {
@@ -217,4 +235,62 @@ pub fn path_exists(path: String) -> bool {
 #[tauri::command]
 pub fn reveal_path(path: String) -> Result<(), String> {
     tauri_plugin_opener::reveal_item_in_dir(&path).map_err(|e| e.to_string())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn paths(ps: &[&std::path::Path]) -> Vec<String> {
+        ps.iter()
+            .map(|p| p.to_string_lossy().into_owned())
+            .collect()
+    }
+
+    #[test]
+    fn classify_routes_archives_to_extract_and_the_rest_to_compress() {
+        let tmp = tempfile::tempdir().unwrap();
+        let root = tmp.path();
+        // An archive by extension…
+        let zip = root.join("photos.zip");
+        std::fs::write(&zip, b"not really a zip -- detection is by extension").unwrap();
+        // …a directory *named* like an archive (never an archive, F5)…
+        let dir = root.join("looks.zip");
+        std::fs::create_dir(&dir).unwrap();
+        // …and a plain file.
+        let note = root.join("notes.txt");
+        std::fs::write(&note, b"hello").unwrap();
+
+        let registry = squash_core::format::FormatRegistry::new();
+        let result = classify(
+            &registry,
+            &paths(&[zip.as_path(), dir.as_path(), note.as_path()]),
+        );
+
+        assert_eq!(result.archives.len(), 1);
+        assert_eq!(result.archives[0].format, "zip");
+        assert_eq!(result.archives[0].path, zip.to_string_lossy());
+        assert_eq!(result.items.len(), 2);
+        assert!(result.items[0].is_dir, "directory routes to compress");
+        assert!(!result.items[1].is_dir);
+        assert!(result.total_bytes.is_some());
+    }
+
+    #[test]
+    fn classify_compound_and_single_file_codec_extensions() {
+        let tmp = tempfile::tempdir().unwrap();
+        let root = tmp.path();
+        let tgz = root.join("backup.tar.gz");
+        let gz = root.join("data.csv.gz");
+        std::fs::write(&tgz, b"x").unwrap();
+        std::fs::write(&gz, b"x").unwrap();
+
+        let registry = squash_core::format::FormatRegistry::new();
+        let result = classify(&registry, &paths(&[tgz.as_path(), gz.as_path()]));
+
+        assert_eq!(result.archives.len(), 2);
+        assert_eq!(result.archives[0].format, "tar.gz");
+        assert_eq!(result.archives[1].format, "gz");
+        assert!(result.items.is_empty());
+    }
 }

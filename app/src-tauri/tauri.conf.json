@@ -34,6 +34,109 @@
       "icons/128x128@2x.png",
       "icons/icon.icns",
       "icons/icon.ico"
-    ]
+    ],
+    "fileAssociations": [
+      {
+        "ext": ["zip"],
+        "name": "ZIP archive",
+        "description": "ZIP archive",
+        "mimeType": "application/zip",
+        "role": "Viewer",
+        "rank": "Alternate"
+      },
+      {
+        "ext": ["7z"],
+        "name": "7-Zip archive",
+        "description": "7-Zip archive",
+        "mimeType": "application/x-7z-compressed",
+        "role": "Viewer",
+        "rank": "Alternate"
+      },
+      {
+        "ext": ["rar"],
+        "name": "RAR archive",
+        "description": "RAR archive",
+        "mimeType": "application/vnd.rar",
+        "role": "Viewer",
+        "rank": "Alternate"
+      },
+      {
+        "ext": ["tar"],
+        "name": "TAR archive",
+        "description": "TAR archive",
+        "mimeType": "application/x-tar",
+        "role": "Viewer",
+        "rank": "Alternate"
+      },
+      {
+        "ext": ["tar.gz", "tgz"],
+        "name": "TAR archive (gzip)",
+        "description": "TAR archive (gzip)",
+        "mimeType": "application/x-compressed-tar",
+        "role": "Viewer",
+        "rank": "Alternate"
+      },
+      {
+        "ext": ["tar.bz2", "tbz2"],
+        "name": "TAR archive (bzip2)",
+        "description": "TAR archive (bzip2)",
+        "mimeType": "application/x-bzip-compressed-tar",
+        "role": "Viewer",
+        "rank": "Alternate"
+      },
+      {
+        "ext": ["tar.xz", "txz"],
+        "name": "TAR archive (xz)",
+        "description": "TAR archive (xz)",
+        "mimeType": "application/x-xz-compressed-tar",
+        "role": "Viewer",
+        "rank": "Alternate"
+      },
+      {
+        "ext": ["tar.zst", "tzst"],
+        "name": "TAR archive (zstd)",
+        "description": "TAR archive (zstd)",
+        "mimeType": "application/x-zstd-compressed-tar",
+        "role": "Viewer",
+        "rank": "Alternate"
+      },
+      {
+        "ext": ["gz"],
+        "name": "Gzip-compressed file",
+        "description": "Gzip-compressed file",
+        "mimeType": "application/gzip",
+        "role": "Viewer",
+        "rank": "Alternate"
+      },
+      {
+        "ext": ["xz"],
+        "name": "XZ-compressed file",
+        "description": "XZ-compressed file",
+        "mimeType": "application/x-xz",
+        "role": "Viewer",
+        "rank": "Alternate"
+      },
+      {
+        "ext": ["zst"],
+        "name": "Zstd-compressed file",
+        "description": "Zstd-compressed file",
+        "mimeType": "application/zstd",
+        "role": "Viewer",
+        "rank": "Alternate"
+      }
+    ],
+    "linux": {
+      "deb": {
+        "desktopTemplate": "./linux/main.desktop"
+      },
+      "rpm": {
+        "desktopTemplate": "./linux/main.desktop"
+      }
+    },
+    "windows": {
+      "nsis": {
+        "installerHooks": "./windows/hooks.nsh"
+      }
+    }
   }
 }

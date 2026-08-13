@@ -8,7 +8,7 @@ const { invokeMock, listenMock } = vi.hoisted(() => ({
 vi.mock("@tauri-apps/api/core", () => ({ invoke: invokeMock }));
 vi.mock("@tauri-apps/api/event", () => ({ listen: listenMock }));
 
-import { api, PROGRESS_EVENT, type JobEntry } from "./api";
+import { api, OPEN_PATHS_EVENT, PROGRESS_EVENT, type JobEntry } from "./api";
 
 const entry: JobEntry = {
   id: "job-1",
@@ -93,5 +93,22 @@ describe("api wrapper", () => {
     const handler = listenMock.mock.calls[0][1] as (e: { payload: unknown }) => void;
     handler({ payload: { kind: "failed", id: "x", errorCode: "internal" } });
     expect(callback).toHaveBeenCalledWith({ kind: "failed", id: "x", errorCode: "internal" });
+  });
+
+  it("takePendingOpenPaths drains the host queue (docs/03 F6)", async () => {
+    invokeMock.mockResolvedValue(["/tmp/a.zip", "/tmp/photos"]);
+    await expect(api.takePendingOpenPaths()).resolves.toEqual(["/tmp/a.zip", "/tmp/photos"]);
+    expect(invokeMock).toHaveBeenCalledWith("take_pending_open_paths");
+  });
+
+  it("onOpenPaths subscribes to the nudge and ignores its (empty) payload", async () => {
+    const unlisten = vi.fn();
+    listenMock.mockResolvedValue(unlisten);
+    const callback = vi.fn();
+    await api.onOpenPaths(callback);
+    expect(listenMock).toHaveBeenCalledWith(OPEN_PATHS_EVENT, expect.any(Function));
+    const handler = listenMock.mock.calls[0][1] as (e: unknown) => void;
+    handler({ payload: null });
+    expect(callback).toHaveBeenCalledTimes(1);
   });
 });

@@ -35,6 +35,32 @@ export default function App() {
   const [announcement, setAnnouncement] = useState("");
   const knownStatuses = useRef<Record<string, QueueJob["status"]>>({});
 
+  /** F5 routing: archives → S3, everything else → S2; a mixed drop does S2
+   * first and chains into S3 for the archives. */
+  const handlePaths = useCallback((paths: string[]) => {
+    void api
+      .classifyPaths(paths)
+      .then((result) => {
+        if (result.items.length > 0) {
+          if (result.archives.length > 0) setPendingArchives(result.archives);
+          setSheet({ kind: "compress", items: result.items, totalBytes: result.totalBytes });
+        } else if (result.archives.length > 0) {
+          setSheet({ kind: "extract", archives: result.archives });
+        }
+      })
+      .catch(() => undefined);
+  }, []);
+
+  /** Pull OS-passed paths (docs/03 F6) and route them like a drop. */
+  const drainOpenPaths = useCallback(() => {
+    void api
+      .takePendingOpenPaths()
+      .then((paths) => {
+        if (paths.length > 0) handlePaths(paths);
+      })
+      .catch(() => undefined);
+  }, [handlePaths]);
+
   // Launch: load settings (language/theme apply live), restore the queue
   // (skeleton until this resolves), and subscribe to job progress.
   useEffect(() => {
@@ -63,11 +89,19 @@ export default function App() {
       .then((fn) => {
         unlisten = fn;
       });
+    // OS "open with" handoff: drain paths queued before the webview was
+    // ready (cold start), then again on every nudge (warm start).
+    drainOpenPaths();
+    let unlistenOpen: (() => void) | undefined;
+    void api.onOpenPaths(drainOpenPaths).then((fn) => {
+      unlistenOpen = fn;
+    });
     return () => {
       active = false;
       unlisten?.();
+      unlistenOpen?.();
     };
-  }, []);
+  }, [drainOpenPaths]);
 
   // Screen-reader announcements on terminal transitions (docs/03 §5).
   useEffect(() => {
@@ -83,22 +117,6 @@ export default function App() {
       }
     }
   }, [queue, t]);
-
-  /** F5 routing: archives → S3, everything else → S2; a mixed drop does S2
-   * first and chains into S3 for the archives. */
-  const handlePaths = useCallback((paths: string[]) => {
-    void api
-      .classifyPaths(paths)
-      .then((result) => {
-        if (result.items.length > 0) {
-          if (result.archives.length > 0) setPendingArchives(result.archives);
-          setSheet({ kind: "compress", items: result.items, totalBytes: result.totalBytes });
-        } else if (result.archives.length > 0) {
-          setSheet({ kind: "extract", archives: result.archives });
-        }
-      })
-      .catch(() => undefined);
-  }, []);
 
   const upsert = useCallback((entry: JobEntry) => dispatch({ type: "upsert", entry }), []);
   const dismiss = useCallback((id: string) => dispatch({ type: "dismiss", id }), []);

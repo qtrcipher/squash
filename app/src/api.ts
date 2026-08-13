@@ -80,6 +80,13 @@ export interface ClassifiedPaths {
 
 export const PROGRESS_EVENT = "squash://job-progress";
 
+/**
+ * Nudge event for OS "open with" handoff (docs/03 F6). Payload is empty —
+ * the paths themselves are pulled via `takePendingOpenPaths` so cold-start
+ * events that fired before the webview subscribed are never lost.
+ */
+export const OPEN_PATHS_EVENT = "squash://open-paths";
+
 export const api = {
   submitCompress: (
     inputs: string[],
@@ -114,4 +121,14 @@ export const api = {
 
   onJobProgress: (callback: (payload: ProgressPayload) => void): Promise<UnlistenFn> =>
     listen<ProgressPayload>(PROGRESS_EVENT, (event) => callback(event.payload)),
+
+  /**
+   * Drain paths the OS handed to the host (argv / RunEvent::Opened /
+   * second-instance launch, docs/03 F6). Route them through classifyPaths.
+   */
+  takePendingOpenPaths: (): Promise<string[]> => invoke<string[]>("take_pending_open_paths"),
+
+  /** Subscribe to the open-paths nudge; the callback should pull, not read a payload. */
+  onOpenPaths: (callback: () => void): Promise<UnlistenFn> =>
+    listen(OPEN_PATHS_EVENT, () => callback()),
 };
