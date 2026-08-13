@@ -191,7 +191,7 @@ pub struct FormatRegistry {
 }
 
 impl FormatRegistry {
-    /// Registry with all built-in handlers (Phase 2: zip + tar family).
+    /// Registry with all built-in handlers (Phase 2: zip + 7z + tar family).
     pub fn new() -> Self {
         let mut reg = Self::empty();
         crate::formats::register_builtin(&mut reg);
@@ -275,9 +275,10 @@ mod tests {
     #[test]
     fn new_registry_has_builtin_handlers() {
         let reg = FormatRegistry::new();
-        // Phase 2 slice: zip + tar family are implemented…
+        // Phase 2: zip + 7z + tar family are implemented…
         for format in [
             Format::Zip,
+            Format::SevenZ,
             Format::Tar,
             Format::TarGz,
             Format::TarBz2,
@@ -286,14 +287,8 @@ mod tests {
         ] {
             assert!(reg.handler_for(format).is_some(), "{format} missing");
         }
-        // …7z/rar/gz/xz/zst land in later tasks.
-        for format in [
-            Format::SevenZ,
-            Format::Rar,
-            Format::Gz,
-            Format::Xz,
-            Format::Zst,
-        ] {
+        // …rar/gz/xz/zst land in later tasks.
+        for format in [Format::Rar, Format::Gz, Format::Xz, Format::Zst] {
             assert!(reg.handler_for(format).is_none(), "{format} unexpected");
         }
     }

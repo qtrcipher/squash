@@ -1,10 +1,11 @@
 //! Format handlers (docs/05 §4). One module per provider crate, all wired
 //! into [`crate::FormatRegistry`] by [`register_builtin`].
 //!
-//! Implemented in this slice: zip (create+extract), tar.gz / tar.zst
-//! (create+extract), tar / tar.bz2 / tar.xz (extract-only). 7z and rar are
-//! deliberately absent — later tasks.
+//! Implemented: zip and 7z (create+extract), tar.gz / tar.zst
+//! (create+extract), tar / tar.bz2 / tar.xz (extract-only). rar is
+//! deliberately absent — a later task.
 
+pub mod sevenz;
 pub mod tar_family;
 pub mod zip;
 
@@ -16,6 +17,7 @@ use std::path::{Component, Path, PathBuf};
 
 pub fn register_builtin(registry: &mut FormatRegistry) {
     registry.register(Box::new(zip::ZipHandler));
+    registry.register(Box::new(sevenz::SevenZHandler));
     registry.register(Box::new(tar_family::TarHandler));
     registry.register(Box::new(tar_family::TarGzHandler));
     registry.register(Box::new(tar_family::TarBz2Handler));

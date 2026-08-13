@@ -63,6 +63,27 @@ fn crafted_tar_symlink_escape(path: &Path) {
     builder.finish().unwrap();
 }
 
+/// A 7z containing `safe/ok.txt` plus `../../evil.txt`. The 7z format stores
+/// names as plain UTF-16 strings and the writer does not sanitize them, so
+/// the raw traversal name goes in as-is — like a real attack archive.
+fn crafted_7z_slip(path: &Path) {
+    let file = fs::File::create(path).unwrap();
+    let mut writer = sevenz_rust2::ArchiveWriter::new(file).unwrap();
+    writer
+        .push_archive_entry(
+            sevenz_rust2::ArchiveEntry::new_file("safe/ok.txt"),
+            Some(&b"ok"[..]),
+        )
+        .unwrap();
+    writer
+        .push_archive_entry(
+            sevenz_rust2::ArchiveEntry::new_file("../../evil.txt"),
+            Some(&b"evil"[..]),
+        )
+        .unwrap();
+    writer.finish().unwrap();
+}
+
 // --- tests -------------------------------------------------------------------
 
 #[test]
@@ -111,6 +132,76 @@ fn tar_symlink_escape_aborts_with_path_traversal_blocked() {
         .unwrap_err();
     assert_eq!(err, SquashError::PathTraversalBlocked);
     assert!(!dest.join("link").exists());
+}
+
+#[test]
+fn sevenz_slip_aborts_with_path_traversal_blocked() {
+    let tmp = tempfile::tempdir().unwrap();
+    let archive = tmp.path().join("attack.7z");
+    crafted_7z_slip(&archive);
+    let dest = tmp.path().join("dest");
+
+    let err = engine()
+        .submit(Job::extract(vec![archive], dest.clone(), Format::SevenZ))
+        .wait()
+        .unwrap_err();
+    assert_eq!(err, SquashError::PathTraversalBlocked);
+    assert!(
+        !tmp.path().join("evil.txt").exists(),
+        "7z-slip payload escaped the destination"
+    );
+}
+
+#[test]
+fn corrupt_sevenz_reports_corrupt_archive() {
+    let tmp = tempfile::tempdir().unwrap();
+    let archive = tmp.path().join("broken.7z");
+    // Valid 7z signature, garbage where the header should be.
+    fs::write(
+        &archive,
+        b"\x37\x7a\xbc\xaf\x27\x1c\x00\x04this is not a real 7z archive at all",
+    )
+    .unwrap();
+
+    let err = engine()
+        .submit(Job::extract(
+            vec![archive],
+            tmp.path().join("dest"),
+            Format::SevenZ,
+        ))
+        .wait()
+        .unwrap_err();
+    assert_eq!(err, SquashError::CorruptArchive);
+}
+
+#[test]
+fn truncated_sevenz_reports_corrupt_archive() {
+    let tmp = tempfile::tempdir().unwrap();
+    // Build a valid 7z, then cut it in half (the 7z header sits at the end).
+    let archive = tmp.path().join("truncated.7z");
+    {
+        let file = fs::File::create(&archive).unwrap();
+        let mut writer = sevenz_rust2::ArchiveWriter::new(file).unwrap();
+        writer
+            .push_archive_entry(
+                sevenz_rust2::ArchiveEntry::new_file("a.txt"),
+                Some(&b"data"[..]),
+            )
+            .unwrap();
+        writer.finish().unwrap();
+    }
+    let bytes = fs::read(&archive).unwrap();
+    fs::write(&archive, &bytes[..bytes.len() / 2]).unwrap();
+
+    let err = engine()
+        .submit(Job::extract(
+            vec![archive],
+            tmp.path().join("dest"),
+            Format::SevenZ,
+        ))
+        .wait()
+        .unwrap_err();
+    assert_eq!(err, SquashError::CorruptArchive);
 }
 
 #[test]

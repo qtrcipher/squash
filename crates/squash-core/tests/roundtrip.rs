@@ -49,6 +49,145 @@ fn roundtrip_zip_all_presets() {
 }
 
 #[test]
+fn roundtrip_sevenz_all_presets() {
+    for preset in Preset::ALL {
+        roundtrip(Format::SevenZ, preset);
+    }
+}
+
+/// Extract a 7z produced directly by the provider crate (not by the Squash
+/// handler) — the foreign-archive path. TODO: no `7zz`/`7z` binary exists on
+/// the dev Mac (`which 7zz 7z` is empty), so an upstream-7-Zip-produced
+/// static fixture belongs in `fixtures/` once one can be captured.
+#[test]
+fn extract_sevenz_foreign() {
+    let tmp = tempfile::tempdir().unwrap();
+    let src = tmp.path().join("src");
+    build_source_tree(&src);
+    let archive = tmp.path().join("foreign.7z");
+    {
+        let file = fs::File::create(&archive).unwrap();
+        let mut writer = sevenz_rust2::ArchiveWriter::new(file).unwrap();
+        for item in walkdir::WalkDir::new(src.join("data")).follow_links(false) {
+            let item = item.unwrap();
+            let name = item
+                .path()
+                .strip_prefix(&src)
+                .unwrap()
+                .to_string_lossy()
+                .replace('\\', "/");
+            if item.file_type().is_dir() {
+                writer
+                    .push_archive_entry(
+                        sevenz_rust2::ArchiveEntry::new_directory(&name),
+                        None::<&[u8]>,
+                    )
+                    .unwrap();
+            } else {
+                writer
+                    .push_archive_entry(
+                        sevenz_rust2::ArchiveEntry::new_file(&name),
+                        Some(fs::File::open(item.path()).unwrap()),
+                    )
+                    .unwrap();
+            }
+        }
+        writer.finish().unwrap();
+    }
+
+    let dest = tmp.path().join("extracted");
+    Engine::new()
+        .submit(Job::extract(vec![archive], dest.clone(), Format::SevenZ))
+        .wait()
+        .unwrap_or_else(|e| panic!("extract 7z failed: {e}"));
+    assert_trees_equal(&src.join("data"), &dest.join("data"));
+}
+
+#[test]
+fn loose_root_sevenz_extracts_into_archive_named_folder() {
+    let tmp = tempfile::tempdir().unwrap();
+    let archive = tmp.path().join("loose.7z");
+    {
+        let file = fs::File::create(&archive).unwrap();
+        let mut writer = sevenz_rust2::ArchiveWriter::new(file).unwrap();
+        writer
+            .push_archive_entry(
+                sevenz_rust2::ArchiveEntry::new_file("a.txt"),
+                Some(&b"aaa"[..]),
+            )
+            .unwrap();
+        writer
+            .push_archive_entry(
+                sevenz_rust2::ArchiveEntry::new_file("b.txt"),
+                Some(&b"bbb"[..]),
+            )
+            .unwrap();
+        writer.finish().unwrap();
+    }
+    let dest = tmp.path().join("dest");
+    Engine::new()
+        .submit(Job::extract(vec![archive], dest.clone(), Format::SevenZ))
+        .wait()
+        .unwrap();
+    // docs/03 F3: loose files → new folder named after the archive.
+    assert_eq!(fs::read(dest.join("loose/a.txt")).unwrap(), b"aaa");
+    assert_eq!(fs::read(dest.join("loose/b.txt")).unwrap(), b"bbb");
+}
+
+#[test]
+fn sevenz_progress_events_flow() {
+    use squash_core::ProgressEvent;
+    let tmp = tempfile::tempdir().unwrap();
+    let src = tmp.path().join("src");
+    build_source_tree(&src);
+    let engine = Engine::new();
+    let archive = tmp.path().join("events.7z");
+    let handle = engine.submit(Job::compress(
+        vec![src.join("data")],
+        archive.clone(),
+        Format::SevenZ,
+        Preset::Balanced,
+    ));
+    let mut events = Vec::new();
+    while let Some(event) = handle.next_event() {
+        events.push(event);
+    }
+    assert!(matches!(
+        events.first(),
+        Some(ProgressEvent::Started { .. })
+    ));
+    assert!(matches!(
+        events.last(),
+        Some(ProgressEvent::Finished { .. })
+    ));
+    assert!(events
+        .iter()
+        .any(|e| matches!(e, ProgressEvent::Advanced { .. })));
+
+    // Extraction reports per-entry progress too.
+    let handle = engine.submit(Job::extract(
+        vec![archive],
+        tmp.path().join("out"),
+        Format::SevenZ,
+    ));
+    let mut events = Vec::new();
+    while let Some(event) = handle.next_event() {
+        events.push(event);
+    }
+    assert!(matches!(
+        events.first(),
+        Some(ProgressEvent::Started { .. })
+    ));
+    assert!(matches!(
+        events.last(),
+        Some(ProgressEvent::Finished { .. })
+    ));
+    assert!(events
+        .iter()
+        .any(|e| matches!(e, ProgressEvent::Advanced { .. })));
+}
+
+#[test]
 fn roundtrip_tar_gz_all_presets() {
     for preset in Preset::ALL {
         roundtrip(Format::TarGz, preset);

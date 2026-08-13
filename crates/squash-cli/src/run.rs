@@ -125,7 +125,7 @@ fn resolve_compress_format(
 ) -> Result<Format, i32> {
     if let Some(raw) = format_arg {
         return parse_format(raw).ok_or_else(|| {
-            eprintln!("squash: unknown format '{raw}' (try zip, tar.gz, tar.zst)");
+            eprintln!("squash: unknown format '{raw}' (try zip, 7z, tar.gz, tar.zst)");
             exit_codes::USAGE
         });
     }

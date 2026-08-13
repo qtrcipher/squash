@@ -10,6 +10,7 @@ repository.workspace = true
 serde.workspace = true
 thiserror.workspace = true
 zip.workspace = true
+sevenz-rust2.workspace = true
 tar.workspace = true
 flate2.workspace = true
 zstd.workspace = true

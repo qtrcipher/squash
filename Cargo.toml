@@ -21,6 +21,8 @@ thiserror = "2"
 # Format backends (docs/05 §4). `zip` is built deflate-only: bzip2/xz/zstd
 # come from the standalone crates below so they aren't linked twice.
 zip = { version = "8", default-features = false, features = ["deflate"] }
+# 7z create+extract (docs/05 §4). `compress` enables the LZMA2 write path.
+sevenz-rust2 = { version = "0.21", default-features = false, features = ["compress"] }
 tar = "0.4"
 flate2 = "1"
 zstd = "0.13"

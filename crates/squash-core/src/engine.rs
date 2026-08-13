@@ -234,11 +234,11 @@ mod tests {
     #[test]
     fn unsupported_format_fails_fast() {
         let engine = Engine::new();
-        // 7z has no handler yet (later task).
+        // rar has no handler yet (later task).
         let handle = engine.submit(Job::extract(
-            vec![PathBuf::from("x.7z")],
+            vec![PathBuf::from("x.rar")],
             PathBuf::from("out"),
-            Format::SevenZ,
+            Format::Rar,
         ));
         assert_eq!(handle.wait(), Err(SquashError::UnsupportedFormat));
     }

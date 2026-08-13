@@ -149,9 +149,9 @@ fn corrupt_archive_exits_3_with_stable_error_code() {
 fn unsupported_compress_format_exits_2() {
     let tmp = tempfile::tempdir().unwrap();
     build_tree(tmp.path());
-    // 7z is in the enum but has no handler yet (later task).
+    // rar is extract-only forever (RarLAB license, docs/05 §4).
     squash()
-        .args(["c", "data", "-f", "7z"])
+        .args(["c", "data", "-f", "rar"])
         .current_dir(tmp.path())
         .assert()
         .code(2)
