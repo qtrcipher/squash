@@ -6,6 +6,14 @@ edition.workspace = true
 license.workspace = true
 repository.workspace = true
 
+[features]
+# `rar` (default ON): RAR *extraction* via the vendored RARLAB UnRAR source
+# (crates/unrar-sys). The UnRAR license is not OSI-approved and forbids RAR
+# creation, so downstream libre-only builds use `--no-default-features`
+# (docs/05 §4/§7). RAR creation is never enabled by anything.
+default = ["rar"]
+rar = ["dep:unrar-sys"]
+
 [dependencies]
 serde.workspace = true
 thiserror.workspace = true
@@ -17,6 +25,7 @@ zstd.workspace = true
 bzip2.workspace = true
 xz2.workspace = true
 walkdir.workspace = true
+unrar-sys = { path = "../unrar-sys", optional = true }
 
 [dev-dependencies]
 serde_json.workspace = true

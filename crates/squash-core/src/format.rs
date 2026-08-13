@@ -287,8 +287,13 @@ mod tests {
         ] {
             assert!(reg.handler_for(format).is_some(), "{format} missing");
         }
-        // …rar/gz/xz/zst land in later tasks.
-        for format in [Format::Rar, Format::Gz, Format::Xz, Format::Zst] {
+        // …rar ships behind its default cargo feature…
+        #[cfg(feature = "rar")]
+        assert!(reg.handler_for(Format::Rar).is_some());
+        #[cfg(not(feature = "rar"))]
+        assert!(reg.handler_for(Format::Rar).is_none());
+        // …gz/xz/zst land in later tasks.
+        for format in [Format::Gz, Format::Xz, Format::Zst] {
             assert!(reg.handler_for(format).is_none(), "{format} unexpected");
         }
     }

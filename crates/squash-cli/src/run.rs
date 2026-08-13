@@ -68,9 +68,15 @@ fn run_compress(
             .map(|h| h.can_create())
             .unwrap_or(false);
     if !creatable {
+        let hint = if format == Format::Rar {
+            // docs/05 §4: the RARLAB license forbids RAR creation, forever.
+            " (the RAR license forbids creating rar — use 7z or tar.zst instead)"
+        } else {
+            ""
+        };
         return fail(
             json,
-            &format!("Squash cannot create '{format}' archives"),
+            &format!("Squash cannot create '{format}' archives{hint}"),
             exit_codes::USAGE,
         );
     }

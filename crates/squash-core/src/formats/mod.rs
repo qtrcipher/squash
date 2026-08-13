@@ -2,9 +2,12 @@
 //! into [`crate::FormatRegistry`] by [`register_builtin`].
 //!
 //! Implemented: zip and 7z (create+extract), tar.gz / tar.zst
-//! (create+extract), tar / tar.bz2 / tar.xz (extract-only). rar is
-//! deliberately absent — a later task.
+//! (create+extract), tar / tar.bz2 / tar.xz (extract-only), and rar
+//! (extract-only, behind the default `rar` feature — the RARLAB license
+//! forbids RAR creation; see vendor/unrar/README.squash.md).
 
+#[cfg(feature = "rar")]
+pub mod rar;
 pub mod sevenz;
 pub mod tar_family;
 pub mod zip;
@@ -18,6 +21,8 @@ use std::path::{Component, Path, PathBuf};
 pub fn register_builtin(registry: &mut FormatRegistry) {
     registry.register(Box::new(zip::ZipHandler));
     registry.register(Box::new(sevenz::SevenZHandler));
+    #[cfg(feature = "rar")]
+    registry.register(Box::new(rar::RarHandler));
     registry.register(Box::new(tar_family::TarHandler));
     registry.register(Box::new(tar_family::TarGzHandler));
     registry.register(Box::new(tar_family::TarBz2Handler));

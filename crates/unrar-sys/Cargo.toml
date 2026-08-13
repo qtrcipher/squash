@@ -1,0 +1,16 @@
+[package]
+name = "unrar-sys"
+description = "Squash-internal FFI wrapper over the vendored RARLAB UnRAR C++ source (extraction only)"
+version.workspace = true
+edition.workspace = true
+# The wrapper code is MIT OR Apache-2.0 like the workspace, but it statically
+# compiles RARLAB's UnRAR source (vendor/unrar/license.txt): freeware,
+# extraction-only, not OSI-approved. See vendor/unrar/README.squash.md.
+license = "MIT OR Apache-2.0"
+repository.workspace = true
+links = "squash_unrar"
+
+[dependencies]
+
+[build-dependencies]
+cc = "1"

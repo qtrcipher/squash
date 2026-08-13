@@ -4,6 +4,7 @@ members = [
     "crates/squash-core",
     "crates/squash-cli",
     "crates/squash-bench",
+    "crates/unrar-sys",
     "app/src-tauri",
 ]
 
