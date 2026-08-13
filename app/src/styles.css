@@ -577,6 +577,19 @@ html[dir="rtl"] body {
   color: var(--warning);
 }
 
+/* One-time contextual hint on S1 (docs/03 F1: no tutorial, one hint only). */
+.hint {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 8px 12px;
+  border: 1px solid var(--accent);
+  border-radius: 6px;
+  background: var(--surface);
+  color: var(--text-primary);
+}
+
 /* Compact + CTA button heights (docs/04 §6: 28 compact, 40 primary CTA). */
 .button.small {
   height: 28px;

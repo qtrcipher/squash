@@ -68,6 +68,9 @@ pub struct Settings {
     pub activation_counter_opt_in: bool,
     /// Drives the first-launch sheet S7 (docs/03 F1).
     pub first_launch_done: bool,
+    /// Dismisses the one-time drop-zone hint on S1 (docs/03 F1: no tutorial,
+    /// a single contextual hint only).
+    pub drop_zone_hint_dismissed: bool,
 }
 
 impl Default for Settings {
@@ -84,6 +87,7 @@ impl Default for Settings {
             update_check_opt_in: false,
             activation_counter_opt_in: false,
             first_launch_done: false,
+            drop_zone_hint_dismissed: false,
         }
     }
 }
@@ -125,6 +129,7 @@ mod tests {
         assert!(!s.update_check_opt_in);
         assert!(!s.activation_counter_opt_in);
         assert!(!s.first_launch_done);
+        assert!(!s.drop_zone_hint_dismissed);
         s.validate().unwrap();
     }
 
@@ -172,6 +177,7 @@ struct RawSettings {
     update_check_opt_in: Option<bool>,
     activation_counter_opt_in: Option<bool>,
     first_launch_done: Option<bool>,
+    drop_zone_hint_dismissed: Option<bool>,
 }
 
 #[derive(Debug, Default, Deserialize)]
@@ -352,6 +358,7 @@ fn coerce(raw: RawSettings) -> (Settings, Vec<String>) {
         update_check_opt_in: raw.update_check_opt_in.unwrap_or(false),
         activation_counter_opt_in: raw.activation_counter_opt_in.unwrap_or(false),
         first_launch_done: raw.first_launch_done.unwrap_or(false),
+        drop_zone_hint_dismissed: raw.drop_zone_hint_dismissed.unwrap_or(false),
     };
     (settings, warnings)
 }
@@ -429,6 +436,7 @@ fn overlay(doc: &mut toml_edit::DocumentMut, s: &Settings) {
     doc["update_check_opt_in"] = value(s.update_check_opt_in);
     doc["activation_counter_opt_in"] = value(s.activation_counter_opt_in);
     doc["first_launch_done"] = value(s.first_launch_done);
+    doc["drop_zone_hint_dismissed"] = value(s.drop_zone_hint_dismissed);
 }
 
 #[cfg(test)]
@@ -465,6 +473,7 @@ mod io_tests {
             update_check_opt_in: true,
             activation_counter_opt_in: true,
             first_launch_done: true,
+            drop_zone_hint_dismissed: true,
             ..Settings::default()
         };
         let outcome = save_and_reload(tmp.path(), &s);
@@ -555,6 +564,51 @@ mod io_tests {
         assert!(outcome.writable);
         assert!(outcome.warning.is_some());
         assert!(tmp.path().join("settings.toml.v0.bak").exists());
+    }
+
+    #[test]
+    fn first_launch_flag_roundtrips() {
+        let tmp = tempfile::tempdir().unwrap();
+        // Fresh installs default to "not done" so S7 shows (docs/03 F1).
+        let outcome = load_settings(tmp.path()).unwrap();
+        assert!(!outcome.value.first_launch_done);
+
+        let done = Settings {
+            first_launch_done: true,
+            ..Settings::default()
+        };
+        let outcome = save_and_reload(tmp.path(), &done);
+        assert!(outcome.value.first_launch_done);
+        assert!(outcome.warning.is_none());
+    }
+
+    #[test]
+    fn v1_file_without_newer_additive_keys_coerces_to_defaults() {
+        // Additive keys (docs/06 §2 forward-compat): a v1 file written before
+        // `drop_zone_hint_dismissed` existed must still load, defaulting the
+        // missing key, and a save must then persist it.
+        let tmp = tempfile::tempdir().unwrap();
+        std::fs::write(
+            tmp.path().join(SETTINGS_FILE),
+            "version = 1\nlanguage = \"ar\"\nfirst_launch_done = true\n",
+        )
+        .unwrap();
+        let outcome = load_settings(tmp.path()).unwrap();
+        assert!(!outcome.value.drop_zone_hint_dismissed);
+        assert!(outcome.value.first_launch_done);
+        assert!(outcome.warning.is_none(), "no coercion happened");
+
+        let dismissed = Settings {
+            drop_zone_hint_dismissed: true,
+            ..outcome.value
+        };
+        let outcome = save_and_reload(tmp.path(), &dismissed);
+        assert!(outcome.value.drop_zone_hint_dismissed);
+        assert_eq!(
+            outcome.value.language,
+            Language::Ar,
+            "existing keys survive"
+        );
     }
 
     #[test]

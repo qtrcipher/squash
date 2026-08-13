@@ -95,6 +95,15 @@ describe("api wrapper", () => {
     expect(callback).toHaveBeenCalledWith({ kind: "failed", id: "x", errorCode: "internal" });
   });
 
+  it("openDefaultAppsSettings maps to the host command (S7, docs/03 F1)", async () => {
+    invokeMock.mockResolvedValue(undefined);
+    await api.openDefaultAppsSettings();
+    expect(invokeMock).toHaveBeenCalledWith("open_default_apps_settings");
+    // Platforms without a default-apps panel reject → caller shows manual steps.
+    invokeMock.mockRejectedValue(new Error("no default-apps settings panel on this platform"));
+    await expect(api.openDefaultAppsSettings()).rejects.toThrow("no default-apps settings panel");
+  });
+
   it("takePendingOpenPaths drains the host queue (docs/03 F6)", async () => {
     invokeMock.mockResolvedValue(["/tmp/a.zip", "/tmp/photos"]);
     await expect(api.takePendingOpenPaths()).resolves.toEqual(["/tmp/a.zip", "/tmp/photos"]);

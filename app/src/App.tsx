@@ -8,16 +8,23 @@ import {
   queueReducer,
   type QueueJob,
 } from "./state/queue";
+import {
+  dismissDropHint,
+  shouldShowDropHint,
+  shouldShowWelcome,
+} from "./state/onboarding";
 import DropZone from "./components/DropZone";
 import QueueList from "./components/QueueList";
 import CompressSheet from "./components/CompressSheet";
 import ExtractSheet from "./components/ExtractSheet";
 import SettingsSheet from "./components/SettingsSheet";
+import WelcomeSheet from "./components/WelcomeSheet";
 
 type SheetState =
   | { kind: "compress"; items: ItemRef[]; totalBytes: number | null }
   | { kind: "extract"; archives: ArchiveRef[] }
   | { kind: "settings" }
+  | { kind: "welcome" }
   | null;
 
 /**
@@ -35,21 +42,36 @@ export default function App() {
   const [announcement, setAnnouncement] = useState("");
   const knownStatuses = useRef<Record<string, QueueJob["status"]>>({});
 
+  /** Dismiss the one-time drop-zone hint and persist the flag (best-effort —
+   * a failed save only means the hint returns next launch). */
+  const dismissHint = useCallback(() => {
+    setSettings((current) => {
+      if (!current || current.drop_zone_hint_dismissed) return current;
+      const next = dismissDropHint(current);
+      void api.setSettings(next).catch(() => undefined);
+      return next;
+    });
+  }, []);
+
   /** F5 routing: archives → S3, everything else → S2; a mixed drop does S2
    * first and chains into S3 for the archives. */
-  const handlePaths = useCallback((paths: string[]) => {
-    void api
-      .classifyPaths(paths)
-      .then((result) => {
-        if (result.items.length > 0) {
-          if (result.archives.length > 0) setPendingArchives(result.archives);
-          setSheet({ kind: "compress", items: result.items, totalBytes: result.totalBytes });
-        } else if (result.archives.length > 0) {
-          setSheet({ kind: "extract", archives: result.archives });
-        }
-      })
-      .catch(() => undefined);
-  }, []);
+  const handlePaths = useCallback(
+    (paths: string[]) => {
+      dismissHint(); // the first drop makes the hint obsolete
+      void api
+        .classifyPaths(paths)
+        .then((result) => {
+          if (result.items.length > 0) {
+            if (result.archives.length > 0) setPendingArchives(result.archives);
+            setSheet({ kind: "compress", items: result.items, totalBytes: result.totalBytes });
+          } else if (result.archives.length > 0) {
+            setSheet({ kind: "extract", archives: result.archives });
+          }
+        })
+        .catch(() => undefined);
+    },
+    [dismissHint],
+  );
 
   /** Pull OS-passed paths (docs/03 F6) and route them like a drop. */
   const drainOpenPaths = useCallback(() => {
@@ -71,6 +93,8 @@ export default function App() {
         if (!active) return;
         setSettings(response.settings);
         setSettingsWritable(response.writable);
+        // F1: S7 shows once, on first launch only.
+        if (shouldShowWelcome(response.settings)) setSheet({ kind: "welcome" });
         void i18n.changeLanguage(response.settings.language);
         applyTheme(response.settings.theme);
       })
@@ -155,6 +179,14 @@ export default function App() {
       </header>
       <main className="main-area">
         <div className="content">
+          {shouldShowDropHint(settings, sheet !== null) && (
+            <div className="hint" role="note">
+              <span>{t("onboarding.dropHint")}</span>
+              <button type="button" className="button small" onClick={dismissHint}>
+                {t("actions.dismiss")}
+              </button>
+            </div>
+          )}
           <DropZone onPaths={handlePaths} />
           <QueueList state={queue} onUpsert={upsert} onDismiss={dismiss} />
         </div>
@@ -184,6 +216,17 @@ export default function App() {
           readOnly={!settingsWritable}
           onSaved={setSettings}
           onClose={closeSheet}
+        />
+      )}
+      {sheet?.kind === "welcome" && settings && (
+        <WelcomeSheet
+          settings={settings}
+          readOnly={!settingsWritable}
+          onSaved={setSettings}
+          onDone={(next) => {
+            setSettings(next);
+            closeSheet();
+          }}
         />
       )}
     </div>

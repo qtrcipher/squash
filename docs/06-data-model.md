@@ -31,6 +31,7 @@ All timestamps RFC 3339 UTC. All paths stored as plain strings, **never canonica
 | `update_check_opt_in` | bool | `false` | — |
 | `activation_counter_opt_in` | bool | `false` | local-only counter (doc 01 §5) |
 | `first_launch_done` | bool | `false` | drives S7 (doc 03 F1) |
+| `drop_zone_hint_dismissed` | bool | `false` | dismisses the one-time S1 drop-zone hint (doc 03 F1) |
 
 Crash-reporting consent is **not** modeled yet — doc 01 §6.3 is an open owner question; the key ships only when decided. Unknown keys are preserved on rewrite (forward-compat).
 

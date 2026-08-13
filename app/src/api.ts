@@ -54,6 +54,7 @@ export interface Settings {
   update_check_opt_in: boolean;
   activation_counter_opt_in: boolean;
   first_launch_done: boolean;
+  drop_zone_hint_dismissed: boolean;
 }
 
 export interface SettingsResponse {
@@ -118,6 +119,13 @@ export const api = {
   pathExists: (path: string): Promise<boolean> => invoke<boolean>("path_exists", { path }),
 
   revealPath: (path: string): Promise<void> => invoke<void>("reveal_path", { path }),
+
+  /**
+   * S7 "make default handler" (docs/03 F1): opens the OS default-apps UI
+   * where one exists (Windows); rejects elsewhere so the caller can show
+   * manual instructions instead of a fake toggle (docs/03 F6).
+   */
+  openDefaultAppsSettings: (): Promise<void> => invoke<void>("open_default_apps_settings"),
 
   onJobProgress: (callback: (payload: ProgressPayload) => void): Promise<UnlistenFn> =>
     listen<ProgressPayload>(PROGRESS_EVENT, (event) => callback(event.payload)),

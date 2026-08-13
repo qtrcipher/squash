@@ -89,6 +89,7 @@ pub fn run() {
             commands::classify_paths,
             commands::path_exists,
             commands::reveal_path,
+            commands::open_default_apps_settings,
             commands::take_pending_open_paths,
         ])
         .build(tauri::generate_context!())

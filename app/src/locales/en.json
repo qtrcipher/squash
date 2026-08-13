@@ -76,6 +76,16 @@
     "saveFailed": "Couldn't save settings.",
     "readOnlyWarning": "Settings were written by a newer version of Squash and are read-only."
   },
+  "onboarding": {
+    "title": "Welcome to Squash",
+    "intro": "A fast, no-nonsense file compressor. Pick your language and theme — you can change both later in Settings.",
+    "defaultHandler": "Make Squash the default app for archives",
+    "defaultHandlerNote": "Your operating system controls this choice, so Squash can't flip it for you — it can only take you to the right place.",
+    "openOsSettings": "Open default-apps settings",
+    "manualSteps": "On macOS: select an archive in Finder → Get Info → Open with → Squash → Change All. On Linux: set Squash as the archive handler in your desktop's settings or file manager.",
+    "continue": "Continue",
+    "dropHint": "Tip: drop files or an archive anywhere in this window to get started."
+  },
   "errors": {
     "unsupported_format": "This format isn't supported.",
     "corrupt_archive": "This archive is corrupt — copy or download it again.",

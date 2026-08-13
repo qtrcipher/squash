@@ -237,6 +237,25 @@ pub fn reveal_path(path: String) -> Result<(), String> {
     tauri_plugin_opener::reveal_item_in_dir(&path).map_err(|e| e.to_string())
 }
 
+/// S7 "make default handler" (docs/03 F1/F6): the OS owns file associations,
+/// so the honest move is opening the OS's default-apps UI where one exists.
+/// Windows has a stable `ms-settings:` URI; macOS and Linux have no such
+/// panel (per-file Finder "Get Info" / DE-specific settings), so the command
+/// reports unsupported and the frontend shows manual instructions instead —
+/// never a fake toggle (docs/03 F6: "the app never pretends otherwise").
+#[tauri::command]
+pub fn open_default_apps_settings() -> Result<(), String> {
+    #[cfg(target_os = "windows")]
+    {
+        tauri_plugin_opener::open_url("ms-settings:defaultapps", None::<&str>)
+            .map_err(|e| e.to_string())
+    }
+    #[cfg(not(target_os = "windows"))]
+    {
+        Err("no default-apps settings panel on this platform".to_string())
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
