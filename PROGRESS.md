@@ -10,6 +10,8 @@
 > a tag on a phase HEADER applies to every item in that phase.
 > House rules (RTL, light/dark, EN/AR i18n, four UI states, conventional commits,
 > session start/end routine) load automatically from CLAUDE.md — deliberately not duplicated here.
+> **NOT an iOS app**: ignore all App Store / ASC / Xcode / Firebase instructions wherever
+> they appear (see project `CLAUDE.md`).
 > Work top to bottom; phases are in order. AI: read this first — if a task is checked,
 > confirm before redoing it; update this file and commit at session end.
 
@@ -68,5 +70,6 @@
 
 ## Session log
 Format, newest first, one line per session: `YYYY-MM-DD — what changed — next: <task>`
+- 2026-08-13 — added project `CLAUDE.md`: house rule — not an iOS app, ignore ASC/Xcode/Firebase instructions — next: Phase 1 repo setup + scaffold
 - 2026-08-13 — Phase 0 complete: wrote docs/01–06 (product scope, market check = Go, UX flows, design direction, Rust+Tauri architecture, local data model); gate passed; 4 owner decisions listed under Phase 0 — next: Phase 1 repo setup (public GitHub repo, LICENSE, README) + project scaffold
 - 2026-08-13 — scaffolded this roadmap from ios-ship-gate template (adapted: cross-platform OSS, app named "Squash", desktop GUI + CLI) — next: Phase 0 product scope + market check
