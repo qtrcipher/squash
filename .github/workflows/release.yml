@@ -1,0 +1,317 @@
+# Squash Release — draft GitHub Releases built from version tags.
+#
+# Trigger: push a semver tag `v*` (e.g. `git tag v0.2.0 && git push origin v0.2.0`),
+# or Actions → Release → Run workflow with a version input (the tag is then
+# created at the selected ref). The tag drives everything: the prepare job
+# fails the run if the workspace Cargo.toml / tauri.conf.json / package.json
+# versions don't match it.
+#
+# Unsigned-first (docs/05 §5): every signing step is gated on secret presence
+# and no-ops cleanly when its secrets are absent.
+#   macOS:    APPLE_CERTIFICATE + APPLE_CERTIFICATE_PASSWORD enable codesigning
+#             (APPLE_SIGNING_IDENTITY optional override); APPLE_ID +
+#             APPLE_PASSWORD + APPLE_TEAM_ID enable notarization. Both run
+#             inside tauri-action / tauri-bundler; empty env vars mean an
+#             ad-hoc-signed, unnotarized build.
+#   Windows:  WINDOWS_CERTIFICATE (base64 .pfx) + WINDOWS_CERTIFICATE_PASSWORD
+#             enable a signtool pass on the .msi/.exe installers (an OSS
+#             SignPath.io cert can be substituted here later).
+#   Linux:    GPG_PRIVATE_KEY (+ optional GPG_PASSPHRASE) enable a detached
+#             ASCII-armored signature of SHA256SUMS.txt in the finalize job.
+#   Sentry:   SQUASH_SENTRY_DSN is baked into the binaries via option_env!;
+#             absent/empty = crash reporting unavailable in the build
+#             (crates/squash-core/src/crash.rs `available()`).
+#
+# macOS ships per-arch (aarch64 + x86_64, the Intel leg cross-built on the
+# arm64 runner per the current tauri-action convention) instead of a lipo
+# universal2 build — GitHub is retiring the Intel macos-13 runners.
+
+name: Release
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version to release, semver without the v (e.g. 0.2.0 or 0.2.0-beta.1)'
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+# One release at a time; never cancel an in-flight release.
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+jobs:
+  prepare:
+    name: Prepare draft release
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write # creates the draft release (and the tag on dispatch)
+    outputs:
+      tag: ${{ steps.meta.outputs.tag }}
+      version: ${{ steps.meta.outputs.version }}
+      prerelease: ${{ steps.meta.outputs.prerelease }}
+      release_id: ${{ steps.release.outputs.release_id }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Resolve tag and version
+        id: meta
+        env:
+          INPUT_VERSION: ${{ inputs.version }}
+        run: |
+          set -euo pipefail
+          if [ "$GITHUB_EVENT_NAME" = "workflow_dispatch" ]; then
+            VERSION="${INPUT_VERSION#v}"
+            TAG="v${VERSION}"
+          else
+            TAG="$GITHUB_REF_NAME"
+            VERSION="${TAG#v}"
+          fi
+          if ! [[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.]+)?$ ]]; then
+            echo "::error::'$VERSION' is not semver (expected X.Y.Z or X.Y.Z-prerelease)"
+            exit 1
+          fi
+          PRERELEASE=false
+          [[ "$VERSION" == *-* ]] && PRERELEASE=true
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "prerelease=$PRERELEASE" >> "$GITHUB_OUTPUT"
+
+      - name: Check version consistency with the tag
+        env:
+          VERSION: ${{ steps.meta.outputs.version }}
+        run: |
+          python3 - <<'EOF'
+          import json, os, sys, tomllib
+          want = os.environ["VERSION"]
+          versions = {
+              "workspace Cargo.toml": tomllib.load(open("Cargo.toml", "rb"))["workspace"]["package"]["version"],
+              "tauri.conf.json": json.load(open("app/src-tauri/tauri.conf.json"))["version"],
+              "app/package.json": json.load(open("app/package.json"))["version"],
+          }
+          bad = {k: v for k, v in versions.items() if v != want}
+          if bad:
+              print(f"::error::Tag version {want} does not match: {bad}")
+              sys.exit(1)
+          print(f"All version files match the tag: {want}")
+          EOF
+
+      - name: Create draft release (idempotent)
+        id: release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ steps.meta.outputs.tag }}
+          PRERELEASE: ${{ steps.meta.outputs.prerelease }}
+        run: |
+          set -euo pipefail
+          if ! gh release view "$TAG" >/dev/null 2>&1; then
+            ARGS=(--draft --title "Squash $TAG" --target "$GITHUB_SHA"
+                  --notes "Draft release for Squash $TAG. Review the artifacts and checksums, then publish.")
+            [ "$PRERELEASE" = "true" ] && ARGS+=(--prerelease)
+            gh release create "$TAG" "${ARGS[@]}"
+          fi
+          echo "release_id=$(gh release view "$TAG" --json databaseId --jq .databaseId)" >> "$GITHUB_OUTPUT"
+
+  build:
+    name: ${{ matrix.name }}
+    needs: prepare
+    runs-on: ${{ matrix.os }}
+    environment: release # secrets may live here or at repo level
+    permissions:
+      contents: write # tauri-action + gh upload assets to the release
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: macOS (Apple Silicon)
+            os: macos-latest
+            target: aarch64-apple-darwin
+            cli_name: squash-macos-aarch64
+          - name: macOS (Intel)
+            os: macos-latest
+            target: x86_64-apple-darwin
+            cli_name: squash-macos-x86_64
+          - name: Linux (x86_64)
+            os: ubuntu-latest
+            target: ''
+            cli_name: squash-linux-x86_64
+          - name: Windows (x86_64)
+            os: windows-latest
+            target: ''
+            cli_name: squash-windows-x86_64
+    env:
+      TAG: ${{ needs.prepare.outputs.tag }}
+      SQUASH_SENTRY_DSN: ${{ secrets.SQUASH_SENTRY_DSN }}
+      WINDOWS_CERTIFICATE: ${{ secrets.WINDOWS_CERTIFICATE }}
+      WINDOWS_CERTIFICATE_PASSWORD: ${{ secrets.WINDOWS_CERTIFICATE_PASSWORD }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: app/package-lock.json
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+
+      # Separate cache key from CI: release builds may embed SQUASH_SENTRY_DSN.
+      - name: Cache cargo
+        uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: release
+
+      # Same Tauri v2 apt deps as ci.yml, plus rpm for the .rpm bundle target.
+      - name: Install Tauri Linux system dependencies
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libwebkit2gtk-4.1-dev \
+            libayatana-appindicator3-dev \
+            librsvg2-dev \
+            libssl-dev \
+            libxdo-dev \
+            patchelf \
+            rpm
+
+      - name: Install frontend dependencies
+        working-directory: app
+        run: npm ci
+
+      - name: Build GUI bundles and upload to the release
+        id: tauri
+        uses: tauri-apps/tauri-action@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
+          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+          APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        with:
+          projectPath: app
+          releaseId: ${{ needs.prepare.outputs.release_id }}
+          releaseDraft: true
+          prerelease: ${{ needs.prepare.outputs.prerelease }}
+          retryAttempts: 3
+          args: ${{ matrix.target != '' && format('--target {0}', matrix.target) || '' }}
+
+      - name: Build CLI (release)
+        run: cargo build --release -p squash-cli ${{ matrix.target != '' && format('--target {0}', matrix.target) || '' }}
+
+      - name: Package CLI archive (tar.gz)
+        if: runner.os != 'Windows'
+        shell: bash
+        run: |
+          set -euo pipefail
+          BIN="target/release/squash"
+          if [ -n "${{ matrix.target }}" ]; then BIN="target/${{ matrix.target }}/release/squash"; fi
+          STAGE="target/cli-stage"
+          rm -rf "$STAGE" && mkdir -p "$STAGE"
+          cp "$BIN" "$STAGE/squash"
+          cp LICENSE-APACHE LICENSE-MIT README.md "$STAGE/"
+          mkdir -p dist-cli
+          tar -czf "dist-cli/${{ matrix.cli_name }}.tar.gz" -C "$STAGE" .
+
+      - name: Package CLI archive (zip)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $stage = "target/cli-stage"
+          Remove-Item -Recurse -Force $stage -ErrorAction Ignore
+          New-Item -ItemType Directory -Force $stage, dist-cli | Out-Null
+          Copy-Item target/release/squash.exe "$stage/squash.exe"
+          Copy-Item LICENSE-APACHE, LICENSE-MIT, README.md $stage
+          Compress-Archive -Path "$stage/*" -DestinationPath "dist-cli/${{ matrix.cli_name }}.zip" -Force
+
+      # tauri-action uploaded unsigned installers; sign them and overwrite.
+      - name: Sign Windows installers (skipped without a certificate)
+        if: runner.os == 'Windows' && env.WINDOWS_CERTIFICATE != ''
+        shell: pwsh
+        env:
+          TAURI_ARTIFACTS: ${{ steps.tauri.outputs.artifactPaths }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $pfx = Join-Path $env:RUNNER_TEMP 'codesign.pfx'
+          [IO.File]::WriteAllBytes($pfx, [Convert]::FromBase64String($env:WINDOWS_CERTIFICATE))
+          $signtool = Get-ChildItem 'C:\Program Files (x86)\Windows Kits\10\bin\*\x64\signtool.exe' |
+            Sort-Object FullName -Descending | Select-Object -First 1 -ExpandProperty FullName
+          $installers = $env:TAURI_ARTIFACTS | ConvertFrom-Json | Where-Object { $_ -match '\.(msi|exe)$' }
+          foreach ($f in $installers) {
+            & $signtool sign /fd SHA256 /tr http://timestamp.digicert.com /td SHA256 /f $pfx /p $env:WINDOWS_CERTIFICATE_PASSWORD "$f"
+            if ($LASTEXITCODE -ne 0) { throw "signtool failed for $f" }
+          }
+          Remove-Item $pfx -Force
+          gh release upload $env:TAG $installers --clobber
+
+      - name: Upload CLI archive to the release
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: gh release upload "$TAG" dist-cli/* --clobber
+
+  finalize:
+    name: Checksums & signature
+    needs: [prepare, build]
+    runs-on: ubuntu-latest
+    environment: release
+    permissions:
+      contents: write
+    env:
+      TAG: ${{ needs.prepare.outputs.tag }}
+      GPG_PRIVATE_KEY: ${{ secrets.GPG_PRIVATE_KEY }}
+      GPG_PASSPHRASE: ${{ secrets.GPG_PASSPHRASE }}
+    steps:
+      # Hash the assets as actually published (not local build paths), so the
+      # sums always match the release page — including the signed Windows
+      # installers the build leg re-uploaded.
+      - name: Download all release assets
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          mkdir -p assets
+          gh release download "$TAG" --dir assets --clobber
+
+      - name: Generate SHA256SUMS.txt
+        working-directory: assets
+        run: |
+          set -euo pipefail
+          rm -f SHA256SUMS.txt SHA256SUMS.txt.asc
+          sha256sum -- * | sort -k2 > SHA256SUMS.txt
+          cat SHA256SUMS.txt
+
+      - name: GPG-sign checksums (skipped without a key)
+        if: env.GPG_PRIVATE_KEY != ''
+        working-directory: assets
+        run: |
+          set -euo pipefail
+          echo "$GPG_PRIVATE_KEY" | gpg --batch --import
+          PASS_ARGS=()
+          [ -n "${GPG_PASSPHRASE:-}" ] && PASS_ARGS=(--passphrase "$GPG_PASSPHRASE")
+          gpg --batch --yes --pinentry-mode loopback "${PASS_ARGS[@]}" \
+            --armor --detach-sign SHA256SUMS.txt
+
+      - name: Upload checksums to the release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          gh release upload "$TAG" assets/SHA256SUMS.txt --clobber
+          if [ -f assets/SHA256SUMS.txt.asc ]; then
+            gh release upload "$TAG" assets/SHA256SUMS.txt.asc --clobber
+          fi
