@@ -19,7 +19,7 @@ mod state;
 
 use state::{spawn_forwarder, AppState, TauriSink};
 use std::sync::Arc;
-use tauri::{AppHandle, Emitter, Manager, RunEvent};
+use tauri::{AppHandle, Emitter, Manager};
 
 type SharedState = Arc<AppState>;
 
@@ -99,11 +99,15 @@ pub fn run() {
 
     // macOS delivers "open with" / dock-icon drops as `RunEvent::Opened`
     // (also on cold start — the queue absorbs events that fire before the
-    // webview subscribes).
+    // webview subscribes). macOS-only: the variant doesn't exist elsewhere.
+    #[cfg(target_os = "macos")]
     let opened_state = app_state;
     app.run(move |handle, event| {
-        if let RunEvent::Opened { urls } = event {
+        #[cfg(target_os = "macos")]
+        if let tauri::RunEvent::Opened { urls } = event {
             deliver_open_paths(handle, &opened_state, open::paths_from_urls(&urls));
         }
+        #[cfg(not(target_os = "macos"))]
+        let _ = (handle, event);
     });
 }

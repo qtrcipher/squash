@@ -7,6 +7,7 @@
 //! Both parsers are pure and unit-tested; the wiring lives in `lib.rs`.
 
 use std::path::Path;
+#[cfg(target_os = "macos")]
 use tauri::Url;
 
 /// Extract candidate file paths from process argv.
@@ -34,7 +35,9 @@ pub fn paths_from_argv(args: &[String], cwd: &Path) -> Vec<String> {
 
 /// Extract file paths from `RunEvent::Opened` URLs (macOS: double-click on
 /// an associated archive, or a drop onto the dock icon — F5/F6 treat them
-/// identically). Non-file URLs are dropped.
+/// identically). Non-file URLs are dropped. macOS-only: `RunEvent::Opened`
+/// does not exist in Tauri on other platforms.
+#[cfg(target_os = "macos")]
 pub fn paths_from_urls(urls: &[Url]) -> Vec<String> {
     urls.iter()
         .filter_map(|url| url.to_file_path().ok())
@@ -79,6 +82,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg(target_os = "macos")]
     fn urls_keep_file_paths_and_drop_other_schemes() {
         let urls = vec![
             Url::parse("file:///tmp/photos.zip").unwrap(),
@@ -93,6 +97,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg(target_os = "macos")]
     fn urls_empty_input_yields_nothing() {
         assert!(paths_from_urls(&[]).is_empty());
     }
