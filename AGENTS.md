@@ -22,3 +22,15 @@ These override/extend the global `~/.claude/CLAUDE.md` for this repo.
   are metered once GitHub Actions exist).
 - No implementation code before the relevant `PROGRESS.md` phase gate is passed.
 - Read `PROGRESS.md` first every session; update it + commit at session end.
+
+## GUI snapshot testing (Phase 5)
+- `npm run test:snapshots` (in `app/`) rebuilds the dev-only harness
+  (`snapshots.html`, Tauri bridge mocked via `SNAPSHOT_MOCK=1` vite alias to
+  `src/testing/mock-tauri.ts`) and captures the full screen × state × en/ar ×
+  light/dark matrix to `app/snapshots/` (macOS review baselines — committed).
+- `npm run test:snapshots:check` pixel-compares against baselines (pixelmatch,
+  0.5% tolerance). CI compares against Linux baselines in `app/snapshots-ci/`;
+  a missing CI baseline is bootstrapped and uploaded as a workflow artifact —
+  commit it from there (see `app/scripts/snapshots.mjs` header).
+- Review diffs like a designer: spacing, truncation, RTL mirroring, Arabic
+  typography. Never re-baseline to make a diff go away without reading it.

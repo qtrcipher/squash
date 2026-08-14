@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useReducer, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { api, type ArchiveRef, type ItemRef, type JobEntry, type Settings } from "./api";
-import { applyTheme } from "./format";
+import { applyTheme, isolate } from "./format";
 import i18n from "./i18n";
 import {
   etaSeconds,
@@ -188,9 +188,9 @@ export default function App() {
         knownStatuses.current[id] = job.status;
         knownMilestones.current[id] = 0; // a fresh run re-announces milestones
         if (known && job.status === "finished") {
-          setAnnouncement(t("queue.announceDone", { name: job.label }));
+          setAnnouncement(t("queue.announceDone", { name: isolate(job.label) }));
         } else if (known && job.status === "failed") {
-          setAnnouncement(t("queue.announceFailed", { name: job.label }));
+          setAnnouncement(t("queue.announceFailed", { name: isolate(job.label) }));
         }
         continue;
       }
@@ -204,8 +204,8 @@ export default function App() {
       const eta = etaSeconds(job);
       setAnnouncement(
         eta !== null
-          ? t("queue.announceProgressEta", { name: job.label, percent, seconds: eta })
-          : t("queue.announceProgress", { name: job.label, percent }),
+          ? t("queue.announceProgressEta", { name: isolate(job.label), percent, seconds: eta })
+          : t("queue.announceProgress", { name: isolate(job.label), percent }),
       );
     }
   }, [queue, t]);

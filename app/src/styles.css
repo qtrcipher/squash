@@ -441,12 +441,16 @@ html[dir="rtl"] body {
 .sheet {
   inline-size: min(520px, 100%);
   max-block-size: 100%;
-  overflow-y: auto;
   background: var(--surface-raised);
   border: 1px solid var(--border);
   border-radius: 8px;
   box-shadow: 0 8px 32px rgba(15, 23, 42, 0.12);
-  padding: 24px;
+  /* Padding lives on header/body (not here) and the BODY scrolls, so the
+     sticky action bar in the body can sit flush with the sheet's bottom
+     edge — a sheet's padding would leave a gap scrolled content peeks
+     through (docs/04 §6: dialog padding 24). */
+  padding: 0;
+  overflow: hidden;
   display: flex;
   flex-direction: column;
   gap: 16px;
@@ -460,6 +464,7 @@ html[dir="rtl"] body {
   display: flex;
   align-items: center;
   justify-content: space-between;
+  padding: 24px 24px 0;
 }
 
 .sheet-title {
@@ -473,6 +478,19 @@ html[dir="rtl"] body {
   display: flex;
   flex-direction: column;
   gap: 16px;
+  padding: 0 24px;
+  min-block-size: 0;
+  overflow-y: auto;
+}
+
+/* Sheets without an action bar (S6) still get the 24px bottom breathing
+   room; the bar carries its own padding instead. */
+.sheet-body > :last-child {
+  margin-block-end: 24px;
+}
+
+.sheet-body > .sheet-actions:last-child {
+  margin-block-end: 0;
 }
 
 .sheet-summary {
@@ -486,7 +504,15 @@ html[dir="rtl"] body {
   color: var(--text-secondary);
 }
 
+/* Actions stay visible when a tall sheet scrolls at small window heights
+   (800×600 default window): S7's Continue must never be below the fold.
+   Negative side margins + padding pin the bar flush to the sheet's edges. */
 .sheet-actions {
+  position: sticky;
+  inset-block-end: 0;
+  margin: 0 -24px;
+  padding: 8px 24px 24px;
+  background: var(--surface-raised);
   display: flex;
   justify-content: flex-end;
   gap: 8px;

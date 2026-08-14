@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { api } from "../api";
-import { formatBytes } from "../format";
+import { formatBytes, isolate } from "../format";
 import {
   etaSeconds,
   progressRatio,
@@ -107,10 +107,12 @@ function QueueRow({
       </span>
       <div className="job-main">
         <div className="job-headline">
-          <span className="job-label" dir="auto">
+          {/* File names are data: always LTR, even in an RTL window
+              (docs/03 §6). */}
+          <span className="job-label" dir="ltr">
             {job.label}
           </span>
-          <span className={`badge badge-${job.status}`}>{t(`queue.${badgeKey(job)}`)}</span>
+          <span className={`badge badge-${badgeKey(job)}`}>{t(`queue.${badgeKey(job)}`)}</span>
         </div>
 
         {job.status === "running" && (
@@ -140,15 +142,17 @@ function QueueRow({
         {job.status === "queued" && <span className="job-meta">{t("queue.queued")}</span>}
 
         {job.status === "finished" && (
-          <span className="job-meta" dir="auto">
+          // Prose follows the locale's direction (inherits `dir`); the
+          // interpolated name/sizes are bidi-isolated inside it.
+          <span className="job-meta">
             {job.operation === "compress" && saved !== null
               ? t("queue.savedSummary", {
-                  name: job.label,
-                  inBytes: formatBytes(job.inBytes ?? 0),
-                  outBytes: formatBytes(job.outBytes ?? 0),
+                  name: isolate(job.label),
+                  inBytes: isolate(formatBytes(job.inBytes ?? 0)),
+                  outBytes: isolate(formatBytes(job.outBytes ?? 0)),
                   percent: saved,
                 })
-              : t("queue.extractedSummary", { name: job.label })}
+              : t("queue.extractedSummary", { name: isolate(job.label) })}
           </span>
         )}
 

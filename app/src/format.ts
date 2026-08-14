@@ -50,3 +50,14 @@ export function applyTheme(theme: "system" | "light" | "dark"): void {
     document.documentElement.dataset.theme = theme;
   }
 }
+
+/**
+ * Wrap a data value (file name, byte size) in LTR bidi isolates before
+ * interpolating it into a localized sentence (docs/03 §6: mixed-direction
+ * strings use bidi isolation — an Arabic filename inside an English sentence,
+ * or a "1.2 GB" size inside an Arabic one, must not scramble the prose
+ * around it; names/sizes themselves are data and stay LTR).
+ */
+export function isolate(value: string): string {
+  return `\u2066${value}\u2069`;
+}

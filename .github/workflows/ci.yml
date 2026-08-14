@@ -82,3 +82,46 @@ jobs:
 
       - name: Test
         run: npm test
+
+  # GUI snapshots (Phase 5): pixel-compares the full screen × state ×
+  # en/ar × light/dark matrix against the committed Linux baselines in
+  # app/snapshots-ci/. When a scenario has no baseline yet, the run
+  # bootstraps it (see the header of app/scripts/snapshots.mjs) — download
+  # the artifact and commit it. macOS baselines (app/snapshots/) are the
+  # local design-review surface and are not compared here.
+  snapshots:
+    name: GUI snapshots (ubuntu)
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request' || !contains(github.event.head_commit.message, '[ci skip]')
+    defaults:
+      run:
+        working-directory: app
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: app/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install Chromium
+        run: npx playwright install --with-deps chromium
+
+      - name: Check snapshots
+        run: npm run test:snapshots:check
+
+      # Bootstrapped baselines (new scenarios) and pixel diffs (failures).
+      - name: Upload snapshot output
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: snapshots-ci-output
+          path: |
+            app/snapshots-ci/
+            app/snapshots-tmp/diff-*.png
+          if-no-files-found: ignore

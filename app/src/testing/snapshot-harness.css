@@ -1,0 +1,9 @@
+/* Harness-only overrides (snapshots.html build, SNAPSHOT_MOCK=1). The shipped
+   app prefers system fonts (docs/04 §3); here the bundled fallbacks are made
+   first-class so captures are comparable across macOS and CI Linux. */
+
+html[dir="rtl"] body {
+  font-family:
+    "Noto Sans Arabic", -apple-system, "Segoe UI Variable Text", Cantarell,
+    "Noto Sans", Ubuntu, system-ui, sans-serif;
+}

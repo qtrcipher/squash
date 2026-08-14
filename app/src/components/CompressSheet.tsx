@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { open } from "@tauri-apps/plugin-dialog";
 import { api, type ItemRef, type JobEntry } from "../api";
-import { baseName, formatBytes, joinPath, parentDir } from "../format";
+import { baseName, formatBytes, isolate, joinPath, parentDir } from "../format";
 import Sheet from "./Sheet";
 import SegmentedControl from "./SegmentedControl";
 
@@ -118,7 +118,7 @@ export default function CompressSheet({
     <Sheet title={t("compress.title")} onClose={onClose}>
       <p className="sheet-summary">
         {t("compress.itemsSummary", { count: items.length })}
-        {totalBytes !== null && <> — {t("compress.totalSize", { size: formatBytes(totalBytes) })}</>}
+        {totalBytes !== null && <> — {t("compress.totalSize", { size: isolate(formatBytes(totalBytes)) })}</>}
       </p>
 
       <div className="field">

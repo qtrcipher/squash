@@ -39,6 +39,8 @@ benches/results.jsonl
 
 # Frontend / Tauri
 app/dist/
+app/dist-snapshots/
+app/snapshots-tmp/
 app/src-tauri/target/
 app/src-tauri/gen/
 *.tsbuildinfo
