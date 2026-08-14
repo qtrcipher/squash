@@ -314,6 +314,10 @@ jobs:
       GPG_PASSPHRASE: ${{ secrets.GPG_PASSPHRASE }}
       TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
       TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+      # This job never checks out the repo (it works on the release's
+      # assets); `gh` would otherwise shell out to git to detect the repo and
+      # fail with "not a git repository".
+      GH_REPO: ${{ github.repository }}
     steps:
       # Hash the assets as actually published (not local build paths), so the
       # sums always match the release page — including the signed Windows
