@@ -35,13 +35,33 @@ function toQueueJob(entry: JobEntry, existing?: QueueJob): QueueJob {
   return { ...entry, prevSample: existing?.prevSample ?? null, lastSample: existing?.lastSample ?? null };
 }
 
+/** Terminal is one-way per job id: the host never reopens a finished job
+ * (retry submits under a fresh id), so a non-terminal snapshot for a job the
+ * client already saw terminate is necessarily stale. */
+function isTerminal(status: JobEntry["status"]): boolean {
+  return status === "finished" || status === "failed" || status === "cancelled";
+}
+
+/**
+ * Merge a host entry (`list_queue` snapshot or submit response) into client
+ * state. The host is authoritative (docs/06 §7) — with one guard: a stale
+ * snapshot never regresses a terminal row. Snapshots are serialized host-side
+ * before the terminal `apply_event` yet can arrive after the terminal event
+ * was already delivered; without the guard the row would flip back to
+ * running/queued and stick there (no further events are coming).
+ */
+function mergeEntry(entry: JobEntry, existing?: QueueJob): QueueJob {
+  if (existing && isTerminal(existing.status) && !isTerminal(entry.status)) return existing;
+  return toQueueJob(entry, existing);
+}
+
 export function queueReducer(state: QueueState, action: QueueAction): QueueState {
   switch (action.type) {
     case "restored": {
       const jobs: Record<string, QueueJob> = {};
       const order: string[] = [];
       for (const entry of action.entries) {
-        jobs[entry.id] = toQueueJob(entry);
+        jobs[entry.id] = mergeEntry(entry, state.jobs[entry.id]);
         order.push(entry.id);
       }
       return { restoring: false, order, jobs };
@@ -53,7 +73,7 @@ export function queueReducer(state: QueueState, action: QueueAction): QueueState
       return {
         ...state,
         order,
-        jobs: { ...state.jobs, [entry.id]: toQueueJob(entry, state.jobs[entry.id]) },
+        jobs: { ...state.jobs, [entry.id]: mergeEntry(entry, state.jobs[entry.id]) },
       };
     }
 

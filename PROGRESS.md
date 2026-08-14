@@ -56,12 +56,12 @@
 - [x] Update checks (opt-in) + release channels (stable/beta) (done 2026-08-14: tauri-plugin-updater, default OFF per trust posture, S6 toggle + channel dropdown + D3 update sheet; keypair generated, private key in GitHub secrets; stable=`latest.json`, beta=`updates` release carrier)
 
 ## Phase 5 — Testing (house bar: 70% unit / 20% integration / 10% E2E)
-- [ ] Tests written WITH each feature (not after)
-- [ ] Every control × every state: disabled, loading, empty, error
-- [ ] GUI snapshots: AR/EN × light/dark
-- [ ] Round-trip corpus tests + fuzzing of archive parsers
-- [ ] Suite green on all three OSes (CI matrix)
-- [ ] Bugs found → root-cause first — `systematic-debugging`
+- [x] Tests written WITH each feature (not after) (enforced all along: every slice landed with tests — 254+ Rust, 60+ frontend)
+- [x] Every control × every state: disabled, loading, empty, error (done 2026-08-14: four-state discipline in components + 13-state snapshot matrix incl. validation-error/failed/restoring)
+- [x] GUI snapshots: AR/EN × light/dark (done 2026-08-14: 52 PNGs, real App via mock bridge, pixelmatch check + CI job; found+fixed badge class, bidi isolation, sticky sheet actions)
+- [x] Round-trip corpus tests + fuzzing of archive parsers (done 2026-08-14: 6 cargo-fuzz targets + weekly CI fuzz job; found+fixed unrar trampoline null-ptr UB, regression fixture pinned)
+- [ ] Suite green on all three OSes (CI matrix) (awaiting E2E/snapshot job results — run in progress)
+- [x] Bugs found → root-cause first — `systematic-debugging` (followed: fs2 lock, verbatim paths, MSVC libs, cfg-gate, test race, fuzz UB — all root-caused, no papering)
 
 ## Phase 6 — Ship v1.0.0
 - [ ] README polish: screenshots, GIF demo, feature matrix vs competitors

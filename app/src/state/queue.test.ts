@@ -148,6 +148,56 @@ describe("queue reducer", () => {
     expect(next).toBe(state);
   });
 
+  // The CI flake (WebKitGTK, run 31830604350): a tiny job's terminal event
+  // beat the submit IPC response, was dropped (no row yet), and the stale
+  // "queued" response entry then stuck the row forever.
+  it("terminal event before the submit response is recovered by a reconcile upsert", () => {
+    let state = initialQueueState;
+    state = queueReducer(state, { type: "restored", entries: [] });
+    // 1. The finished event arrives before the row exists → dropped.
+    state = queueReducer(state, {
+      type: "progress",
+      payload: { kind: "finished", id: "job-1", inBytes: 10, outBytes: 5, durationMs: 3 },
+      at: 0,
+    });
+    expect(isQueueEmpty(state)).toBe(true);
+    // 2. The submit response lands with the stale queued snapshot.
+    state = queueReducer(state, { type: "upsert", entry: entry() });
+    expect(queueList(state)[0].status).toBe("queued");
+    // 3. The post-submit reconcile re-pulls the host queue (authoritative:
+    // apply_event ran before emit) and converges the row.
+    state = queueReducer(state, {
+      type: "upsert",
+      entry: entry({ status: "finished", inBytes: 10, outBytes: 5, durationMs: 3 }),
+    });
+    const job = queueList(state)[0];
+    expect(job.status).toBe("finished");
+    expect(savedPercent(job)).toBe(50);
+  });
+
+  it("a stale snapshot never regresses a terminal row", () => {
+    let state = withJob(entry({ status: "running", totalBytesEstimate: 1000 }));
+    state = queueReducer(state, {
+      type: "progress",
+      payload: { kind: "finished", id: "job-1", inBytes: 1000, outBytes: 500, durationMs: 42 },
+      at: 0,
+    });
+    expect(queueList(state)[0].status).toBe("finished");
+    // A list_queue response generated host-side just before the terminal
+    // apply_event arrives after the event itself — must not flip the row back.
+    state = queueReducer(state, { type: "upsert", entry: entry({ status: "running" }) });
+    expect(queueList(state)[0].status).toBe("finished");
+    state = queueReducer(state, { type: "restored", entries: [entry({ status: "queued" })] });
+    expect(queueList(state)[0].status).toBe("finished");
+    // Terminal snapshots DO update a terminal row (finished → failed cannot
+    // happen host-side, but a finished snapshot confirms the row).
+    state = queueReducer(state, {
+      type: "upsert",
+      entry: entry({ status: "finished", inBytes: 1000, outBytes: 500, durationMs: 42 }),
+    });
+    expect(queueList(state)[0].status).toBe("finished");
+  });
+
   it("progressRatio is null without a total (indeterminate bar)", () => {
     const state = withJob(entry({ status: "running" }));
     expect(progressRatio(queueList(state)[0])).toBeNull();

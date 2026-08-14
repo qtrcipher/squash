@@ -74,8 +74,11 @@ Close any running Squash instance first — the single-instance plugin would
 forward the test argv to it instead of launching a test app.
 
 Screenshots (failure shots + the RTL pair) land in `e2e/artifacts/`
-(gitignored; uploaded by CI). Failed scenarios keep their fixture dirs
-under `$TMPDIR` for post-mortem (the path is printed).
+(gitignored; uploaded by CI). Failures also dump the host-side queue view
+(`FAIL-*-queue.json` — the authoritative `list_queue` snapshot), so a stuck
+row shows whether the engine never ran it (host: queued) or its progress
+event was lost in transit (host: terminal). Failed scenarios keep their
+fixture dirs under `$TMPDIR` for post-mortem (the path is printed).
 
 ## CI
 

@@ -13,6 +13,7 @@
  *   SQUASH_E2E_ARTIFACTS screenshot output dir
  *   SQUASH_STORE_DIR     throwaway settings/queue store (squash-core hook)
  */
+import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -87,6 +88,20 @@ export const config = {
       await browser.saveScreenshot(path.join(artifacts, `FAIL-${safe}.png`));
     } catch {
       // App may already be gone; the WDIO log is the evidence then.
+    }
+    // Host-side queue view (authoritative, docs/06 §7): distinguishes "row
+    // stuck because the engine never ran it" (host: queued/running) from
+    // "progress event lost on the way to the webview" (host: terminal).
+    try {
+      const queue = await browser.execute(() =>
+        window.__TAURI__.core.invoke("list_queue"),
+      );
+      fs.writeFileSync(
+        path.join(artifacts, `FAIL-${safe}-queue.json`),
+        JSON.stringify(queue, null, 2),
+      );
+    } catch {
+      // Same as above — the screenshot may still be enough.
     }
   },
 };

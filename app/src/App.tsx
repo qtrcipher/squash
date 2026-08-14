@@ -150,19 +150,23 @@ export default function App() {
         if (active) setCrashAvailable(config.available);
       })
       .catch(() => undefined);
-    void api
-      .listQueue()
-      .then((entries) => {
-        if (active) dispatch({ type: "restored", entries });
-      })
-      .catch(() => {
-        if (active) dispatch({ type: "restored", entries: [] });
-      });
+    // Subscribe BEFORE snapshotting the queue: `listen()` registration is
+    // async IPC, so a snapshot racing it can miss events emitted in the gap
+    // (e.g. a restored job finishing during launch). After registration every
+    // event is delivered live; anything emitted before it is in the snapshot.
     let unlisten: (() => void) | undefined;
     void api
       .onJobProgress((payload) => dispatch({ type: "progress", payload, at: Date.now() }))
       .then((fn) => {
         unlisten = fn;
+      })
+      .catch(() => undefined)
+      .then(() => api.listQueue())
+      .then((entries) => {
+        if (active) dispatch({ type: "restored", entries });
+      })
+      .catch(() => {
+        if (active) dispatch({ type: "restored", entries: [] });
       });
     // OS "open with" handoff: drain paths queued before the webview was
     // ready (cold start), then again on every nudge (warm start).
@@ -221,6 +225,31 @@ export default function App() {
   const upsert = useCallback((entry: JobEntry) => dispatch({ type: "upsert", entry }), []);
   const dismiss = useCallback((id: string) => dispatch({ type: "dismiss", id }), []);
 
+  /**
+   * Re-pull the host queue after a submit/retry. The response entry is a
+   * snapshot taken at submit time and can already be stale: a fast job's
+   * events are emitted from the worker/forwarder threads concurrently with
+   * the IPC response, and a terminal event that reaches the webview before
+   * our upsert is dropped by the reducer (no row to apply it to). The host
+   * is the authoritative queue (docs/06 §7) — one reconcile pass converges
+   * the row; the reducer's terminal guard keeps this race-free.
+   */
+  const reconcileQueue = useCallback(() => {
+    void api
+      .listQueue()
+      .then((entries) => entries.forEach(upsert))
+      .catch(() => undefined);
+  }, [upsert]);
+
+  /** Retry path (QueueRow): upsert the fresh entry, then reconcile. */
+  const upsertAndReconcile = useCallback(
+    (entry: JobEntry) => {
+      upsert(entry);
+      reconcileQueue();
+    },
+    [upsert, reconcileQueue],
+  );
+
   /** Update check (docs/03 S6/D3): runs on the S6 button, and on launch only
    * when the user opted in (docs/02: no silent phone-home). A found update
    * opens D3 via the effect below; errors surface in S6 with a Retry. */
@@ -236,6 +265,7 @@ export default function App() {
   const afterCompress = useCallback(
     (entries: JobEntry[]) => {
       entries.forEach(upsert);
+      reconcileQueue();
       if (pendingArchives.length > 0) {
         setSheet({ kind: "extract", archives: pendingArchives });
         setPendingArchives([]);
@@ -243,15 +273,16 @@ export default function App() {
         setSheet(null);
       }
     },
-    [pendingArchives, upsert],
+    [pendingArchives, upsert, reconcileQueue],
   );
 
   const afterExtract = useCallback(
     (entries: JobEntry[]) => {
       entries.forEach(upsert);
+      reconcileQueue();
       setSheet(null);
     },
-    [upsert],
+    [upsert, reconcileQueue],
   );
 
   return (
@@ -273,7 +304,7 @@ export default function App() {
             </div>
           )}
           <DropZone onPaths={handlePaths} />
-          <QueueList state={queue} onUpsert={upsert} onDismiss={dismiss} />
+          <QueueList state={queue} onUpsert={upsertAndReconcile} onDismiss={dismiss} />
         </div>
       </main>
 
