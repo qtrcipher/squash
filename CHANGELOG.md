@@ -5,7 +5,7 @@ All notable changes to Squash are documented here. The format follows
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html) (see "Versioning & changelog"
 in [CONTRIBUTING.md](CONTRIBUTING.md)).
 
-## [0.1.0] - Unreleased
+## [1.0.0] - 2026-08-15
 
 First public release — not yet tagged. Everything below is on `main` and ships with v0.1.0.
 
