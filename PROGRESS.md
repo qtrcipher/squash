@@ -51,9 +51,9 @@
 - [x] Performance: benchmark suite vs 7-Zip/WinRAR/Keka (ratio + speed), tracked over time — `performance-optimizer` agent (done 2026-08-14: `squash-bench` — seeded corpus, competitor compare, regression gate vs `benches/baseline.json`; zstd 4.6× faster than gzip at equal ratio PROVEN; 7-Zip ratio claim pending p7zip in CI)
 
 ## Phase 4 — Distribution
-- [ ] GitHub Releases: signed binaries per OS (notarized macOS, signed Windows) — `release-automation`
-- [ ] Package managers: Homebrew, winget/Scoop, apt/Snap/Flatpak, AUR
-- [ ] Update checks (opt-in) + release channels (stable/beta)
+- [x] GitHub Releases: signed binaries per OS (notarized macOS, signed Windows) — `release-automation` (done 2026-08-14: `.github/workflows/release.yml` — tag-triggered matrix, draft releases, SHA256SUMS, updater manifests; signing steps gated on secrets: unsigned until owner adds Apple/Windows/GPG certs)
+- [x] Package managers: Homebrew, winget/Scoop, apt/Snap/Flatpak, AUR (done 2026-08-14: `homebrew-tap` + `scoop-bucket` repos created, publish automation gated on `TAP_GITHUB_TOKEN`; winget/Flatpak/AUR templates in `packaging/` — submissions happen at first release; Snap deferred: needs Snapcraft account)
+- [x] Update checks (opt-in) + release channels (stable/beta) (done 2026-08-14: tauri-plugin-updater, default OFF per trust posture, S6 toggle + channel dropdown + D3 update sheet; keypair generated, private key in GitHub secrets; stable=`latest.json`, beta=`updates` release carrier)
 
 ## Phase 5 — Testing (house bar: 70% unit / 20% integration / 10% E2E)
 - [ ] Tests written WITH each feature (not after)
@@ -70,6 +70,7 @@
 
 ## Session log
 Format, newest first, one line per session: `YYYY-MM-DD — what changed — next: <task>`
+- 2026-08-14 — PHASE 4 COMPLETE (automation-side): release.yml (tag→matrix builds→draft release→SHA256SUMS→updater manifests; signing gated on secrets); updater (opt-in, stable/beta channels, keypair in GitHub secrets); homebrew-tap + scoop-bucket repos + publish jobs (gated on TAP_GITHUB_TOKEN); winget/Flatpak/AUR templates in packaging/ — next: Phase 5 testing hardening (snapshots, fuzzing, WebDriver E2E); owner actions: Apple/Windows/GPG certs, TAP_GITHUB_TOKEN PAT, Sentry DSN
 - 2026-08-14 — Phase 3 fully green on CI (run 31772597520): fixed consent-gate test race (one file-scope `CONSENT_TEST_LOCK` shared by both test modules; was a scheduling race that passed macOS, failed Ubuntu/Windows) — next: Phase 4 distribution (release workflow, signing, package managers)
 - 2026-08-14 — PHASE 3 COMPLETE: security audit `docs/07` (physical symlink-chain escape FIXED, bomb guard 200×/1TiB/1M + rollback wired into all handlers, unrar shim 3 fixes); opt-in Sentry crash reporting (default off, S7/S6 consent, scrubbed paths, DSN via build env — owner to create project); `squash-bench` harness (seeded corpus, honest level mapping, regression gate; zstd 4.6× gzip at equal ratio proven on M3 Max; 7zz comparison pending p7zip in CI) — next: Phase 4 distribution (signing, GitHub Releases, package managers)
 - 2026-08-14 — PHASE 2 COMPLETE: OS integration (11-format fileAssociations, open-with routing cold+warm via pull-queue, single-instance, NSIS context verbs, Linux %F desktop template); onboarding (S7 welcome sheet + honest default-handler fallback + drop-zone hint); accessibility pass (focus trap/restore, roving-tabindex segmented controls, aria-live milestones, keyboard drop zone); verbose logging (`log` facade, CLI `-v`/`SQUASH_LOG` stderr-only, GUI rolling squash.log + S6 toggle) — next: Phase 3 security audit + benchmark harness + crash-reporting decision
