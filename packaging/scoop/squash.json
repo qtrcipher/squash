@@ -1,0 +1,28 @@
+{
+  "//": "Template in the squash repo at packaging/scoop/squash.json — rendered and pushed here by the Squash release workflow. Do not edit by hand.",
+  "version": "@VERSION@",
+  "description": "Open-source file compressor — CLI for macOS, Windows, and Linux",
+  "homepage": "https://github.com/qtrcipher/squash",
+  "license": "MIT OR Apache-2.0",
+  "architecture": {
+    "64bit": {
+      "url": "https://github.com/qtrcipher/squash/releases/download/v@VERSION@/squash-windows-x86_64.zip",
+      "hash": "@SHA256_WINDOWS_X86_64@"
+    }
+  },
+  "bin": "squash.exe",
+  "checkver": {
+    "github": "https://github.com/qtrcipher/squash"
+  },
+  "autoupdate": {
+    "architecture": {
+      "64bit": {
+        "url": "https://github.com/qtrcipher/squash/releases/download/v$version/squash-windows-x86_64.zip"
+      }
+    },
+    "hash": {
+      "url": "$baseurl/SHA256SUMS.txt",
+      "regex": "$sha256\\s+\\*?$basename"
+    }
+  }
+}

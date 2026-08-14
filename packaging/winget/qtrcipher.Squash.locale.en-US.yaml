@@ -1,0 +1,28 @@
+# winget default-locale manifest — TEMPLATE for the first release (v0.1.0).
+#
+# winget-pkgs layout when submitting:
+#   manifests/q/qtrcipher/Squash/0.1.0/qtrcipher.Squash.locale.en-US.yaml
+PackageIdentifier: qtrcipher.Squash
+PackageVersion: 0.1.0
+PackageLocale: en-US
+Publisher: qtrcipher
+PublisherUrl: https://github.com/qtrcipher
+PublisherSupportUrl: https://github.com/qtrcipher/squash/issues
+PackageName: Squash
+PackageUrl: https://github.com/qtrcipher/squash
+License: MIT OR Apache-2.0
+LicenseUrl: https://github.com/qtrcipher/squash/blob/main/LICENSE-MIT
+Copyright: Copyright (c) Squash contributors
+ShortDescription: Open-source file compressor for macOS, Windows, and Linux — desktop GUI + CLI on one shared core.
+Moniker: squash
+Tags:
+  - archive
+  - compression
+  - zip
+  - 7z
+  - zstd
+  - rar
+  - tar
+ReleaseNotesUrl: https://github.com/qtrcipher/squash/releases/tag/v0.1.0
+ManifestType: defaultLocale
+ManifestVersion: 1.10.0

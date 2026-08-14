@@ -1,0 +1,11 @@
+# winget version manifest — TEMPLATE for the first release (v0.1.0).
+#
+# winget-pkgs layout when submitting:
+#   manifests/q/qtrcipher/Squash/0.1.0/qtrcipher.Squash.yaml
+# Regenerate with wingetcreate instead of editing by hand (see CONTRIBUTING.md):
+#   wingetcreate new --urls <msi-url> <exe-url> --version 0.1.0
+PackageIdentifier: qtrcipher.Squash
+PackageVersion: 0.1.0
+DefaultLocale: en-US
+ManifestType: version
+ManifestVersion: 1.10.0

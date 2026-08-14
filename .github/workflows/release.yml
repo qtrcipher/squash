@@ -26,6 +26,10 @@
 #   Sentry:   SQUASH_SENTRY_DSN is baked into the binaries via option_env!;
 #             absent/empty = crash reporting unavailable in the build
 #             (crates/squash-core/src/crash.rs `available()`).
+#   Packages: TAP_GITHUB_TOKEN (fine-grained PAT, contents:write on
+#             qtrcipher/homebrew-tap + qtrcipher/scoop-bucket) enables the
+#             publish-homebrew / publish-scoop jobs (stable tags only, after
+#             finalize). See CONTRIBUTING.md "Package-manager distribution".
 #
 # macOS ships per-arch (aarch64 + x86_64, the Intel leg cross-built on the
 # arm64 runner per the current tauri-action convention) instead of a lipo
@@ -424,3 +428,65 @@ jobs:
           if [ -f assets/SHA256SUMS.txt.asc ]; then
             gh release upload "$TAG" assets/SHA256SUMS.txt.asc --clobber
           fi
+
+  # Package-manager publishing (docs: CONTRIBUTING.md §Releasing).
+  # Rendered from templates under packaging/ using the release's
+  # SHA256SUMS.txt, then pushed to the tap/bucket repos with a fine-grained
+  # PAT (TAP_GITHUB_TOKEN, contents:write on qtrcipher/homebrew-tap and
+  # qtrcipher/scoop-bucket). Gated on the secret's presence — without it the
+  # jobs no-op. Stable tags only: prereleases never touch the channels.
+  # NOTE: these run when the draft finishes building; publish the draft
+  # promptly afterwards or the manifests briefly point at non-public assets.
+  publish-homebrew:
+    name: Publish to Homebrew tap
+    needs: [prepare, finalize]
+    if: needs.prepare.outputs.prerelease == 'false'
+    runs-on: ubuntu-latest
+    environment: release
+    permissions:
+      contents: read
+    env:
+      TAG: ${{ needs.prepare.outputs.tag }}
+      TAP_GITHUB_TOKEN: ${{ secrets.TAP_GITHUB_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download SHA256SUMS.txt
+        if: env.TAP_GITHUB_TOKEN != ''
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          mkdir -p assets
+          gh release download "$TAG" -p SHA256SUMS.txt --dir assets --clobber
+
+      - name: Render and push formula + cask
+        if: env.TAP_GITHUB_TOKEN != ''
+        run: packaging/homebrew/publish.sh "$TAG" assets/SHA256SUMS.txt
+
+  publish-scoop:
+    name: Publish to Scoop bucket
+    needs: [prepare, finalize]
+    if: needs.prepare.outputs.prerelease == 'false'
+    runs-on: ubuntu-latest
+    environment: release
+    permissions:
+      contents: read
+    env:
+      TAG: ${{ needs.prepare.outputs.tag }}
+      TAP_GITHUB_TOKEN: ${{ secrets.TAP_GITHUB_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download SHA256SUMS.txt
+        if: env.TAP_GITHUB_TOKEN != ''
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          mkdir -p assets
+          gh release download "$TAG" -p SHA256SUMS.txt --dir assets --clobber
+
+      - name: Render and push manifest
+        if: env.TAP_GITHUB_TOKEN != ''
+        run: packaging/scoop/publish.sh "$TAG" assets/SHA256SUMS.txt

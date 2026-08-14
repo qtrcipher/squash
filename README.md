@@ -2,7 +2,20 @@
 
 **Open-source file compressor for macOS, Windows, and Linux — desktop GUI + CLI on one shared core.**
 
-> Status: early development (pre-alpha). The planning docs are done; the code is being scaffolded. Nothing to install yet.
+> Status: early development (pre-alpha). The planning docs are done; the code is being scaffolded.
+
+## Install
+
+**No releases yet** — the commands below go live with the first release (`v0.1.0`). Until then, build from source (see [CONTRIBUTING.md](CONTRIBUTING.md)).
+
+- **macOS / Linux (CLI)** — `brew install qtrcipher/tap/squash`
+- **macOS (GUI)** — `brew install --cask qtrcipher/tap/squash`
+- **Windows (GUI)** — `winget install qtrcipher.Squash`
+- **Windows (CLI)** — `scoop bucket add squash https://github.com/qtrcipher/scoop-bucket && scoop install squash`
+- **Linux (GUI)** — download the `.deb` / `.rpm` / `.AppImage` from [Releases](https://github.com/qtrcipher/squash/releases) and install with your package manager (`sudo dpkg -i squash_*.deb`, `sudo dnf install squash-*.rpm`); Flatpak via Flathub is planned.
+- **Arch Linux** — `yay -S squash` (AUR, planned after the first release)
+
+Every release publishes `SHA256SUMS.txt` (GPG-signed once configured) so you can verify downloads.
 
 Squash aims to beat the common compressors where they actually hurt: dated UIs, nagware, platform lock-in, and weak automation — not by chasing another fraction of compression ratio.
 
@@ -19,6 +32,7 @@ crates/squash-cli    # command-line interface
 crates/squash-bench  # benchmark harness (vs 7-Zip & co.)
 app/                 # desktop GUI (Tauri v2 + React/TypeScript)
 docs/                # planning: product, market, UX, design, architecture, data model
+packaging/           # package-manager templates + publish scripts (Homebrew, Scoop, winget, Flatpak, AUR)
 ```
 
 ## Documentation

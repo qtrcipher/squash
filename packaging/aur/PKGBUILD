@@ -1,0 +1,48 @@
+# AUR PKGBUILD for Squash (GUI + CLI, built from source) — TEMPLATE.
+# Submit to the AUR only after the first real release (see CONTRIBUTING.md):
+# update pkgver + sha256sums, test with `makepkg -si`, then push to
+# ssh://aur@aur.archlinux.org/squash.git
+# Maintainer: qtrcipher <https://github.com/qtrcipher>
+pkgname=squash
+pkgver=0.1.0 # TEMPLATE — first release version
+pkgrel=1
+pkgdesc="Open-source file compressor for macOS, Windows, and Linux — desktop GUI + CLI"
+arch=('x86_64' 'aarch64')
+url="https://github.com/qtrcipher/squash"
+license=('MIT' 'Apache-2.0')
+depends=(
+  'webkit2gtk-4.1'
+  'gtk3'
+  'libayatana-appindicator'
+  'libsoup3'
+  'librsvg'
+  'openssl'
+)
+makedepends=('cargo' 'npm' 'nodejs')
+source=("${pkgname}-${pkgver}.tar.gz::https://github.com/qtrcipher/squash/archive/refs/tags/v${pkgver}.tar.gz")
+sha256sums=('SKIP') # TEMPLATE — replace with `updpkgsums` before submission
+
+build() {
+  cd "squash-${pkgver}"
+  cargo build --release -p squash-cli
+  cd app
+  npm ci
+  npm run tauri build -- --no-bundle
+}
+
+check() {
+  cd "squash-${pkgver}"
+  cargo test --release -p squash-core -p squash-cli
+}
+
+package() {
+  cd "squash-${pkgver}"
+  install -Dm755 "app/src-tauri/target/release/squash-app" "${pkgdir}/usr/bin/squash-app"
+  install -Dm755 "target/release/squash" "${pkgdir}/usr/bin/squash"
+  install -Dm644 "app/src-tauri/linux/main.desktop" "${pkgdir}/usr/share/applications/dev.squash.app.desktop"
+  install -Dm644 "app/src-tauri/icons/128x128.png" "${pkgdir}/usr/share/icons/hicolor/128x128/apps/dev.squash.app.png"
+  install -Dm644 "app/src-tauri/icons/32x32.png" "${pkgdir}/usr/share/icons/hicolor/32x32/apps/dev.squash.app.png"
+  install -Dm644 "app/src-tauri/icons/icon.png" "${pkgdir}/usr/share/icons/hicolor/512x512/apps/dev.squash.app.png"
+  install -Dm644 LICENSE-MIT "${pkgdir}/usr/share/licenses/${pkgname}/LICENSE-MIT"
+  install -Dm644 LICENSE-APACHE "${pkgdir}/usr/share/licenses/${pkgname}/LICENSE-APACHE"
+}
