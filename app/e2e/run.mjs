@@ -33,12 +33,17 @@ const artifacts = path.join(here, "artifacts");
 const exe = process.platform === "win32" ? ".exe" : "";
 const appBinary = path.join(repoRoot, "target", "debug", `squash-app${exe}`);
 const cliBinary = path.join(repoRoot, "target", "debug", `squash${exe}`);
-// spawnSync without a shell needs the .cmd shims on Windows.
-const npmCmd = process.platform === "win32" ? "npm.cmd" : "npm";
-const npxCmd = process.platform === "win32" ? "npx.cmd" : "npx";
+// Spawning npm/npx on Windows: Node ≥18.20.2/20.12.2 (CVE-2024-27980) refuses
+// to launch .cmd/.bat files without a shell — spawnSync returns status null
+// (EINVAL). Route through the shell there; cargo/git stay shell-free.
+const isWin = process.platform === "win32";
+const npmCmd = "npm";
+const npxCmd = "npx";
 
 function run(cmd, args, opts = {}) {
-  const result = spawnSync(cmd, args, { stdio: "inherit", ...opts });
+  const shell = isWin && /^(npm|npx)(\.cmd)?$/.test(cmd);
+  const result = spawnSync(cmd, args, { stdio: "inherit", shell, ...opts });
+  if (result.error) throw result.error;
   if (result.status !== 0) {
     throw new Error(`${cmd} ${args.join(" ")} failed with exit ${result.status}`);
   }
@@ -127,6 +132,7 @@ function runScenario(name) {
     {
       cwd: appDir,
       stdio: "inherit",
+      shell: isWin,
       env: {
         ...process.env,
         SQUASH_STORE_DIR: storeDir,
