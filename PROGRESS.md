@@ -26,8 +26,9 @@
 > **Phase 0 gate: PASSED 2026-08-13.** Open owner decisions (do not block the gate, resolve before the phases they touch):
 > 1. RAR messaging sign-off: "extracts RAR, never creates it" (RARLAB license) — touches Phase 2/6 copy.
 > 2. ~~Opt-in crash reporting posture~~ — RESOLVED 2026-08-14: opt-in Sentry implemented (default OFF, consent UX, scrubbing). OWNER DECISION 2026-08-15: **no Sentry project** — feature stays dormant (no DSN → builds ship with it unavailable); debug logs are the diagnostics channel.
-> 3. Donations from day one vs wait — touches Phase 6.
-> 4. User-created presets: docs 01/03 say "exactly 3 presets" but doc 06 models user presets — doc 06 proposal: GUI lists them, no preset editor in v1. Sign off or adjust.
+> 3. Donations from day one vs wait — touches Phase 6 (still open).
+> 4. User-created presets: docs 01/03 say "exactly 3 presets" but doc 06 models user presets — doc 06 proposal: GUI lists them, no preset editor in v1. Sign off or adjust (still open).
+> 5. ~~TAP_GITHUB_TOKEN for tap auto-publish~~ — OWNER DECISION 2026-08-15: **skip**; Homebrew/Scoop publish jobs no-op by design, manifests updated manually if ever wanted.
 
 ## Phase 1 — Foundation
 - [x] Public GitHub repo; LICENSE (OSS), README, CONTRIBUTING; `.gitignore` covers secrets BEFORE first commit (done 2026-08-13: github.com/qtrcipher/squash, MIT+Apache-2.0 dual)
