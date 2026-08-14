@@ -7,7 +7,7 @@
 
 Squash is a free, open-source file archiver built as a modern 7-Zip alternative: one compression core behind both a native-feeling GUI and a scriptable CLI, identical on Windows and Linux. It opens RAR, 7z, zip, tar.gz, tar.zst and more out of the box — so opening a RAR someone sent you or creating a tar.gz on Windows stops being a research project — and it compresses with modern codecs like zstd alongside the classic formats. No ads, no trial nag, no silent telemetry.
 
-> Status: pre-release. The code is feature-complete for v1 and in final testing; **no public release exists yet** — see [Install](#install).
+> Status: **v1.0.0 released** (2026-08-15) — Windows + Linux, GUI + CLI. See [Install](#install).
 
 ## Screenshots
 
@@ -69,11 +69,9 @@ At roughly the same output size as `gzip -6`, Squash's zstd fast preset ran **4.
 
 ## Install
 
-**No releases yet** — the commands below go live with the first release (`v0.1.0`). Until then, build from source (see [CONTRIBUTING.md](CONTRIBUTING.md)).
+**[Download v1.0.0](https://github.com/qtrcipher/squash/releases/latest)** — Windows GUI installer (`setup.exe` / `.msi`), Linux `.deb` / `.rpm` / `.AppImage`, and standalone CLI archives. Verify against `SHA256SUMS.txt`. Builds are unsigned for now — expect a one-time SmartScreen prompt on Windows.
 
-- **Linux (CLI)** — `brew install qtrcipher/tap/squash`
-- **Windows (GUI)** — `winget install qtrcipher.Squash`
-- **Windows (CLI)** — `scoop bucket add squash https://github.com/qtrcipher/scoop-bucket && scoop install squash`
+Coming soon (manifests update manually for now): `brew install qtrcipher/tap/squash` (Linux CLI) · `winget install qtrcipher.Squash` · `scoop bucket add squash https://github.com/qtrcipher/scoop-bucket && scoop install squash`
 - **Linux (GUI)** — download the `.deb` / `.rpm` / `.AppImage` from [Releases](https://github.com/qtrcipher/squash/releases) and install with your package manager (`sudo dpkg -i squash_*.deb`, `sudo dnf install squash-*.rpm`); Flatpak via Flathub is planned.
 - **Arch Linux** — `yay -S squash` (AUR, planned after the first release)
 
