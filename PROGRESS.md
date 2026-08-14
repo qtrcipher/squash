@@ -40,10 +40,10 @@
 ## Phase 2 — Features
 - [x] Core: compress/extract, presets, drag-and-drop — `state-management` · `persistence-patterns` (done 2026-08-14: engine + create zip/7z/tar.gz/tar.zst/gz/xz/zst, extract those + tar/tar.bz2/tar.xz/rar, presets, GUI drag-and-drop + queue + persistence)
 - [x] CLI: full parity with the core (scriptable, pipe-friendly) (done 2026-08-14: all core formats, `--json` JSONL, documented exit codes, e2e tested)
-- [ ] OS integration: file associations, context menus / Finder integration
-- [ ] Onboarding + in-app guides
-- [ ] Accessibility (full keyboard nav, screen reader, per-platform conventions) — `accessibility-specialist` agent
-- [ ] Verbose/debug logging mode for support issues
+- [x] OS integration: file associations, context menus / Finder integration (done 2026-08-14: 11-format `fileAssociations` all OSes, open-with routing cold+warm start, single-instance, NSIS context verbs, Linux desktop `%F`; Win11 modern menu + Finder Quick Action deferred — need signing)
+- [x] Onboarding + in-app guides (done 2026-08-14: S7 welcome sheet — language/theme, honest default-handler button + manual fallback; dismissible drop-zone hint; `first_launch_done`/`drop_zone_hint_dismissed` settings)
+- [x] Accessibility (full keyboard nav, screen reader, per-platform conventions) — `accessibility-specialist` agent (done 2026-08-14: focus trap/restore, roving-tabindex segmented controls (RTL-aware arrows), aria-live milestones, per-job action labels, keyboard drop zone; real SR passes deferred to Phase 5 WebDriver E2E)
+- [x] Verbose/debug logging mode for support issues (done 2026-08-14: `log` facade; CLI `-v`/`SQUASH_LOG` (stderr only); GUI `debug_logging` toggle + rolling `squash.log` + reveal-log-folder; version/OS header)
 
 ## Phase 3 — Quality & Security
 - [ ] Security audit: zip-slip / path traversal, malicious/crafted archives, decompression bombs — `security-checklist`
@@ -70,6 +70,7 @@
 
 ## Session log
 Format, newest first, one line per session: `YYYY-MM-DD — what changed — next: <task>`
+- 2026-08-14 — PHASE 2 COMPLETE: OS integration (11-format fileAssociations, open-with routing cold+warm via pull-queue, single-instance, NSIS context verbs, Linux %F desktop template); onboarding (S7 welcome sheet + honest default-handler fallback + drop-zone hint); accessibility pass (focus trap/restore, roving-tabindex segmented controls, aria-live milestones, keyboard drop zone); verbose logging (`log` facade, CLI `-v`/`SQUASH_LOG` stderr-only, GUI rolling squash.log + S6 toggle) — next: Phase 3 security audit + benchmark harness + crash-reporting decision
 - 2026-08-14 — Windows CI GREEN after 4th fix: fs2 `lock_exclusive()` on append-only handle failed with os error 5 (LockFileEx needs GENERIC_READ|WRITE — added `.read(true)` in `append_history`; real product bug, Windows users would have lost all history). Full matrix now passing: fmt/clippy/test × macOS/Ubuntu/Windows + frontend (run 31750104659) — next: OS integration, onboarding S7, accessibility pass, debug logging
 - 2026-08-14 — Phase 2 core item COMPLETE: single-file codecs gz/xz/zst (create+extract, streaming, preset rows 1/6/9 + 3/7/19, compound-extension detection, F4 one-output-per-input batch); Windows unrar build fixed across 3 CI rounds (verbatim `\\?\` paths → cl.exe C1083; isnt.cpp+motw.cpp+shell32; advapi32) — next: OS integration, onboarding S7, accessibility pass, debug logging
 - 2026-08-14 — Phase 2 GUI wiring slice: `squash-core::store` persistence I/O (settings.toml TOML w/ toml_edit comment+unknown-key preservation, queue.json, history.jsonl fs2-locked append, atomic temp+rename writes, v1 version gates + migration stub, 200/30d retention); Tauri host commands (submit/cancel/retry/dismiss/list, settings get/set, classify_paths, path_exists, reveal) + `squash://job-progress` event channel; React screens S1 drop zone (native onDragDropEvent), S2 compress (F4 batch one-per-item default), S3 extract, S4 queue (4 states, ETA, retry/reveal/dismiss), S6 settings (live EN/AR RTL + theme); 90 core + 9 host + 20 frontend tests green — next: S5 archive preview + S7 first-launch, then Phase 5 E2E (tauri-driver)
