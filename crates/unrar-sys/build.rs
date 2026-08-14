@@ -142,6 +142,25 @@ fn main() {
         println!("cargo:rustc-link-lib=advapi32");
     }
 
+    // Apple targets: system.cpp's `__builtin_cpu_supports("sse4.1")` dispatch
+    // (and AES-NI in rijndael.cpp) lowers to `___cpu_model`, which lives in
+    // compiler-rt's builtins archive. clang links it implicitly when it drives
+    // the link, but the final link is rustc-driven — and on x86_64 (notably
+    // the Intel cross-build leg) the symbol goes unresolved. Link the
+    // toolchain's libclang_rt.osx.a explicitly.
+    if std::env::var("CARGO_CFG_TARGET_OS").as_deref() == Ok("macos") {
+        if let Ok(out) = std::process::Command::new("clang")
+            .arg("--print-resource-dir")
+            .output()
+        {
+            let resource_dir = String::from_utf8_lossy(&out.stdout).trim().to_string();
+            if !resource_dir.is_empty() {
+                println!("cargo:rustc-link-search=native={resource_dir}/lib/darwin");
+                println!("cargo:rustc-link-lib=static=clang_rt.osx");
+            }
+        }
+    }
+
     // Rebuild when the vendored tree or the shim changes.
     println!("cargo:rerun-if-changed=shim/shim.cpp");
     println!("cargo:rerun-if-changed=shim/shim.h");
