@@ -27,6 +27,7 @@
   },
   "bundle": {
     "active": true,
+    "createUpdaterArtifacts": true,
     "targets": "all",
     "icon": [
       "icons/32x32.png",
@@ -137,6 +138,14 @@
       "nsis": {
         "installerHooks": "./windows/hooks.nsh"
       }
+    }
+  },
+  "plugins": {
+    "updater": {
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IEZDREM0MUZFMUJGNzA5OUQKUldTZENmY2Iva0hjL0M4d1o5WlFIMzlPRWhKcElEVVdBbk92QjI1dzU5YmV1VUNRTGg0QldsbE8K",
+      "endpoints": [
+        "https://github.com/qtrcipher/squash/releases/latest/download/latest.json"
+      ]
     }
   }
 }

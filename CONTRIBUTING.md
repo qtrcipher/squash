@@ -48,7 +48,18 @@ Releases are built by `.github/workflows/release.yml`. Everything is driven by t
    ```
    Alternatively: Actions → **Release** → Run workflow with the version (no `v`); the tag is created at the selected ref.
 3. The workflow builds a **draft** release. Review the artifacts and `SHA256SUMS.txt` on the release page, then publish manually.
-4. Prerelease: any tag with a hyphen (`v0.2.0-beta.1`) is marked prerelease automatically — this is the beta-channel groundwork.
+4. Prerelease: any tag with a hyphen (`v0.2.0-beta.1`) is marked prerelease automatically — it feeds the **beta** update channel (see below).
+
+### Update channels (stable / beta)
+
+The GUI self-updates via `tauri-plugin-updater` (docs/03 S6/D3). Update checks are **opt-in** — a manual "Check for updates" button in Settings, plus an automatic check on launch only when the user turned it on (default off; the check is a single GET of a manifest, no user data sent).
+
+- **stable** (default): `https://github.com/qtrcipher/squash/releases/latest/download/latest.json` — GitHub's `latest` alias never resolves to a prerelease. The finalize job attaches `latest.json` to every stable release.
+- **beta**: `https://github.com/qtrcipher/squash/releases/download/updates/beta.json` — prerelease tags refresh `beta.json` on the long-lived `updates` release (the workflow creates it on first use; it is not a Squash release).
+
+The finalize job generates the manifest from the assets *as published* and re-signs the updater bundles (`*.app.tar.gz`, `*.AppImage`, `*-setup.exe`) with the updater private key — the re-sign matters because the Windows `signtool` pass modifies the installer after the bundler signed it. The manifest embeds each platform's minisign signature; the app verifies it against the public key baked into `tauri.conf.json` (`plugins.updater.pubkey`) before installing.
+
+Rotating the keypair: `npm tauri signer generate -- -w <path>`, put the public key into `app/src-tauri/tauri.conf.json`, update the `TAURI_SIGNING_PRIVATE_KEY` secret. **Never commit the private key** — installed builds can only ever accept updates signed by their baked-in public key's counterpart, so losing it means no more updates for existing installs.
 
 ### Artifacts per release
 
@@ -69,6 +80,7 @@ All signing is **gated on secret presence**: absent secrets no-op cleanly and th
 | `APPLE_ID`, `APPLE_PASSWORD`, `APPLE_TEAM_ID` | macOS notarization (Apple ID + app-specific password) |
 | `WINDOWS_CERTIFICATE`, `WINDOWS_CERTIFICATE_PASSWORD` | Windows `signtool` signing of the `.msi`/`.exe` (base64 `.pfx`). An OSS SignPath.io cert can replace this later |
 | `GPG_PRIVATE_KEY` (+ optional `GPG_PASSPHRASE`) | Detached ASCII-armored signature of `SHA256SUMS.txt` |
+| `TAURI_SIGNING_PRIVATE_KEY` (+ optional `TAURI_SIGNING_PRIVATE_KEY_PASSWORD`) | Updater bundle signatures (`.sig`) and the `latest.json`/`beta.json` manifests — without it, releases ship without updater manifests |
 | `SQUASH_SENTRY_DSN` | Crash reporting *available* in the build (still opt-in at runtime; see above) |
 
 ### Notes

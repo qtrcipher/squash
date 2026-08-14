@@ -18,6 +18,11 @@
 #             SignPath.io cert can be substituted here later).
 #   Linux:    GPG_PRIVATE_KEY (+ optional GPG_PASSPHRASE) enable a detached
 #             ASCII-armored signature of SHA256SUMS.txt in the finalize job.
+#   Updater:  TAURI_SIGNING_PRIVATE_KEY (+ optional
+#             TAURI_SIGNING_PRIVATE_KEY_PASSWORD) sign the updater bundles
+#             (.sig) and let the finalize job build the updater manifests —
+#             latest.json (stable) on the release itself, beta.json on the
+#             long-lived `updates` release for prerelease tags.
 #   Sentry:   SQUASH_SENTRY_DSN is baked into the binaries via option_env!;
 #             absent/empty = crash reporting unavailable in the build
 #             (crates/squash-core/src/crash.rs `available()`).
@@ -200,6 +205,13 @@ jobs:
           APPLE_ID: ${{ secrets.APPLE_ID }}
           APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          # Updater signing (createUpdaterArtifacts in tauri.conf.json):
+          # produces the .sig next to each updater bundle. The finalize job
+          # re-signs the *published* assets into latest.json/beta.json, which
+          # also covers the signtool pass below (signtool changes the .exe
+          # after the bundler signed it).
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         with:
           projectPath: app
           releaseId: ${{ needs.prepare.outputs.release_id }}
@@ -273,8 +285,12 @@ jobs:
       contents: write
     env:
       TAG: ${{ needs.prepare.outputs.tag }}
+      VERSION: ${{ needs.prepare.outputs.version }}
+      PRERELEASE: ${{ needs.prepare.outputs.prerelease }}
       GPG_PRIVATE_KEY: ${{ secrets.GPG_PRIVATE_KEY }}
       GPG_PASSPHRASE: ${{ secrets.GPG_PASSPHRASE }}
+      TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+      TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
     steps:
       # Hash the assets as actually published (not local build paths), so the
       # sums always match the release page — including the signed Windows
@@ -286,6 +302,8 @@ jobs:
           set -euo pipefail
           mkdir -p assets
           gh release download "$TAG" --dir assets --clobber
+          # Updater manifests are (re)generated below; never hash a stale one.
+          rm -f assets/latest.json assets/beta.json
 
       - name: Generate SHA256SUMS.txt
         working-directory: assets
@@ -305,6 +323,97 @@ jobs:
           [ -n "${GPG_PASSPHRASE:-}" ] && PASS_ARGS=(--passphrase "$GPG_PASSPHRASE")
           gpg --batch --yes --pinentry-mode loopback "${PASS_ARGS[@]}" \
             --armor --detach-sign SHA256SUMS.txt
+
+      # Updater manifest (docs/03 D3, tauri-plugin-updater static JSON):
+      # re-sign the *published* updater bundles — the Windows leg's signtool
+      # pass changes the .exe after the bundler signed it, so the per-leg
+      # .sig files cannot be trusted. Skipped without the signing key.
+      - name: Sign updater bundles (skipped without a key)
+        if: env.TAURI_SIGNING_PRIVATE_KEY != ''
+        working-directory: assets
+        run: |
+          set -euo pipefail
+          for f in *.app.tar.gz *.AppImage *-setup.exe; do
+            [ -e "$f" ] || continue
+            npx --yes @tauri-apps/cli signer sign "$f"
+          done
+
+      - name: Build updater manifest (skipped without a key)
+        if: env.TAURI_SIGNING_PRIVATE_KEY != ''
+        run: |
+          set -euo pipefail
+          python3 - <<'EOF'
+          import datetime, fnmatch, json, os, sys
+
+          tag, version = os.environ["TAG"], os.environ["VERSION"]
+          prerelease = os.environ["PRERELEASE"] == "true"
+          base = f"https://github.com/qtrcipher/squash/releases/download/{tag}"
+          assets = os.listdir("assets")
+
+          def pick(*patterns):
+              for pattern in patterns:
+                  hits = sorted(f for f in assets if fnmatch.fnmatch(f, pattern))
+                  if hits:
+                      return hits[0]
+              return None
+
+          platforms = {}
+          for key, patterns in {
+              "darwin-aarch64": ("*aarch64.app.tar.gz",),
+              "darwin-x86_64": ("*x64.app.tar.gz", "*x86_64.app.tar.gz"),
+              "linux-x86_64": ("*.AppImage",),
+              "windows-x86_64": ("*-setup.exe",),
+          }.items():
+              asset = pick(*patterns)
+              if asset is None:
+                  print(f"::notice::no updater bundle for {key}, skipping")
+                  continue
+              sig_path = os.path.join("assets", asset + ".sig")
+              if not os.path.exists(sig_path):
+                  print(f"::error::{asset} has no signature ({asset}.sig)")
+                  sys.exit(1)
+              with open(sig_path) as fh:
+                  signature = fh.read().strip()
+              platforms[key] = {"signature": signature, "url": f"{base}/{asset}"}
+
+          if not platforms:
+              print("::error::no updater bundles found at all")
+              sys.exit(1)
+
+          manifest = {
+              "version": version,
+              "notes": f"Squash {tag}",
+              "pub_date": datetime.datetime.now(datetime.timezone.utc).strftime(
+                  "%Y-%m-%dT%H:%M:%SZ"
+              ),
+              "platforms": platforms,
+          }
+          name = "beta.json" if prerelease else "latest.json"
+          with open(name, "w") as fh:
+              json.dump(manifest, fh, indent=2)
+          print(f"wrote {name}: {json.dumps(manifest)[:200]}…")
+          EOF
+
+      # Stable tags: the manifest rides the release itself and is served via
+      # the releases/latest alias. Prerelease tags: `latest` can never point
+      # at them, so beta.json lives on the fixed `updates` release instead.
+      - name: Publish updater manifest (skipped without a key)
+        if: env.TAURI_SIGNING_PRIVATE_KEY != ''
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          if [ "$PRERELEASE" = "true" ]; then
+            if ! gh release view updates >/dev/null 2>&1; then
+              gh release create updates \
+                --title "Updater manifests" \
+                --notes "Internal release carrying the updater channel manifests (beta.json). Not a Squash release." \
+                --latest=false
+            fi
+            gh release upload updates beta.json --clobber
+          else
+            gh release upload "$TAG" latest.json --clobber
+          fi
 
       - name: Upload checksums to the release
         env:

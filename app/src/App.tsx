@@ -15,18 +15,27 @@ import {
   shouldShowDropHint,
   shouldShowWelcome,
 } from "./state/onboarding";
+import {
+  initialUpdateState,
+  runUpdateCheck,
+  runUpdateInstall,
+  shouldShowUpdateSheet,
+  updateReducer,
+} from "./state/updater";
 import { initCrashReporting } from "./crashReporting";
 import DropZone from "./components/DropZone";
 import QueueList from "./components/QueueList";
 import CompressSheet from "./components/CompressSheet";
 import ExtractSheet from "./components/ExtractSheet";
 import SettingsSheet from "./components/SettingsSheet";
+import UpdateSheet from "./components/UpdateSheet";
 import WelcomeSheet from "./components/WelcomeSheet";
 
 type SheetState =
   | { kind: "compress"; items: ItemRef[]; totalBytes: number | null }
   | { kind: "extract"; archives: ArchiveRef[] }
   | { kind: "settings" }
+  | { kind: "update" }
   | { kind: "welcome" }
   | null;
 
@@ -38,6 +47,7 @@ type SheetState =
 export default function App() {
   const { t } = useTranslation();
   const [queue, dispatch] = useReducer(queueReducer, initialQueueState);
+  const [update, dispatchUpdate] = useReducer(updateReducer, initialUpdateState);
   const [settings, setSettings] = useState<Settings | null>(null);
   const [settingsWritable, setSettingsWritable] = useState(true);
   /** Whether this build can report crashes at all (docs/06 §6) — drives the
@@ -122,6 +132,15 @@ export default function App() {
             })
             .catch(() => undefined);
         }
+        // Opt-in update check (docs/03 S6, docs/02): off by default, so no
+        // network happens on launch unless the user turned this on.
+        if (response.settings.update_check_opt_in) {
+          void runUpdateCheck(
+            dispatchUpdate,
+            api.checkForUpdate,
+            response.settings.release_channel,
+          );
+        }
       })
       .catch(() => undefined); // defaults already in place
     // The consent toggles on S6/S7 render disabled when the build has no DSN.
@@ -191,8 +210,25 @@ export default function App() {
     }
   }, [queue, t]);
 
+  // An update found by any check opens D3 — but never over S7 first launch:
+  // the welcome sheet is one-time and owns the first-run moment (docs/03 F1).
+  useEffect(() => {
+    if (update.kind === "available" && sheet?.kind !== "welcome" && sheet?.kind !== "update") {
+      setSheet({ kind: "update" });
+    }
+  }, [update, sheet]);
+
   const upsert = useCallback((entry: JobEntry) => dispatch({ type: "upsert", entry }), []);
   const dismiss = useCallback((id: string) => dispatch({ type: "dismiss", id }), []);
+
+  /** Update check (docs/03 S6/D3): runs on the S6 button, and on launch only
+   * when the user opted in (docs/02: no silent phone-home). A found update
+   * opens D3 via the effect below; errors surface in S6 with a Retry. */
+  const checkForUpdates = useCallback(
+    (channel: Settings["release_channel"]) =>
+      void runUpdateCheck(dispatchUpdate, api.checkForUpdate, channel),
+    [],
+  );
 
   const closeSheet = useCallback(() => setSheet(null), []);
 
@@ -264,8 +300,21 @@ export default function App() {
           settings={settings}
           readOnly={!settingsWritable}
           crashReportingAvailable={crashAvailable}
+          updateState={update}
           onSaved={setSettings}
+          onCheckForUpdates={() => checkForUpdates(settings.release_channel)}
           onClose={closeSheet}
+        />
+      )}
+      {sheet?.kind === "update" && shouldShowUpdateSheet(update) && (
+        <UpdateSheet
+          state={update}
+          onInstall={() => void runUpdateInstall(dispatchUpdate, api.downloadAndInstallUpdate)}
+          onRestart={() => void api.restartApp()}
+          onLater={() => {
+            dispatchUpdate({ type: "dismissed" });
+            closeSheet();
+          }}
         />
       )}
       {sheet?.kind === "welcome" && settings && (

@@ -39,6 +39,26 @@ pub enum LooseFilesPolicy {
     Here,
 }
 
+/// Which release channel the GUI updater follows (docs/03 S6, D3):
+/// `stable` tracks non-prerelease GitHub releases, `beta` also tracks
+/// prereleases. Steers the updater endpoint only — the CLI is updated by
+/// package managers, never self-updated.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum ReleaseChannel {
+    Stable,
+    Beta,
+}
+
+impl ReleaseChannel {
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::Stable => "stable",
+            Self::Beta => "beta",
+        }
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ExtractSettings {
     pub dest_policy: DestPolicy,
@@ -66,6 +86,10 @@ pub struct Settings {
     pub extract: ExtractSettings,
     pub update_check_opt_in: bool,
     pub activation_counter_opt_in: bool,
+    /// Updater release channel (docs/03 S6): `stable` (default) follows
+    /// non-prerelease releases only; `beta` follows prereleases. Meaningless
+    /// unless `update_check_opt_in` is on or a manual check is run.
+    pub release_channel: ReleaseChannel,
     /// Drives the first-launch sheet S7 (docs/03 F1).
     pub first_launch_done: bool,
     /// Dismisses the one-time drop-zone hint on S1 (docs/03 F1: no tutorial,
@@ -94,6 +118,7 @@ impl Default for Settings {
             extract: ExtractSettings::default(),
             update_check_opt_in: false,
             activation_counter_opt_in: false,
+            release_channel: ReleaseChannel::Stable,
             first_launch_done: false,
             drop_zone_hint_dismissed: false,
             debug_logging: false,
@@ -138,6 +163,7 @@ mod tests {
         assert_eq!(s.extract.loose_files_policy, LooseFilesPolicy::NewFolder);
         assert!(!s.update_check_opt_in);
         assert!(!s.activation_counter_opt_in);
+        assert_eq!(s.release_channel, ReleaseChannel::Stable);
         assert!(!s.first_launch_done);
         assert!(!s.drop_zone_hint_dismissed);
         assert!(!s.debug_logging);
@@ -188,6 +214,7 @@ struct RawSettings {
     extract: Option<RawExtractSettings>,
     update_check_opt_in: Option<bool>,
     activation_counter_opt_in: Option<bool>,
+    release_channel: Option<String>,
     first_launch_done: Option<bool>,
     drop_zone_hint_dismissed: Option<bool>,
     debug_logging: Option<bool>,
@@ -371,6 +398,15 @@ fn coerce(raw: RawSettings) -> (Settings, Vec<String>) {
         extract,
         update_check_opt_in: raw.update_check_opt_in.unwrap_or(false),
         activation_counter_opt_in: raw.activation_counter_opt_in.unwrap_or(false),
+        release_channel: match raw.release_channel.as_deref() {
+            None => defaults.release_channel,
+            Some("stable") => ReleaseChannel::Stable,
+            Some("beta") => ReleaseChannel::Beta,
+            Some(other) => {
+                warn(format!("unknown release_channel {other:?}, using stable"));
+                ReleaseChannel::Stable
+            }
+        },
         first_launch_done: raw.first_launch_done.unwrap_or(false),
         drop_zone_hint_dismissed: raw.drop_zone_hint_dismissed.unwrap_or(false),
         debug_logging: raw.debug_logging.unwrap_or(false),
@@ -451,6 +487,7 @@ fn overlay(doc: &mut toml_edit::DocumentMut, s: &Settings) {
     });
     doc["update_check_opt_in"] = value(s.update_check_opt_in);
     doc["activation_counter_opt_in"] = value(s.activation_counter_opt_in);
+    doc["release_channel"] = value(s.release_channel.as_str());
     doc["first_launch_done"] = value(s.first_launch_done);
     doc["drop_zone_hint_dismissed"] = value(s.drop_zone_hint_dismissed);
     doc["debug_logging"] = value(s.debug_logging);
@@ -490,6 +527,7 @@ mod io_tests {
             },
             update_check_opt_in: true,
             activation_counter_opt_in: true,
+            release_channel: ReleaseChannel::Beta,
             first_launch_done: true,
             drop_zone_hint_dismissed: true,
             debug_logging: true,
@@ -603,6 +641,20 @@ mod io_tests {
     }
 
     #[test]
+    fn unknown_release_channel_coerces_to_stable_with_warning() {
+        let tmp = tempfile::tempdir().unwrap();
+        std::fs::write(
+            tmp.path().join(SETTINGS_FILE),
+            "version = 1\nrelease_channel = \"nightly\"\n",
+        )
+        .unwrap();
+        let outcome = load_settings(tmp.path()).unwrap();
+        assert_eq!(outcome.value.release_channel, ReleaseChannel::Stable);
+        let warning = outcome.warning.expect("coercions produce a warning");
+        assert!(warning.contains("nightly"), "{warning}");
+    }
+
+    #[test]
     fn v1_file_without_newer_additive_keys_coerces_to_defaults() {
         // Additive keys (docs/06 §2 forward-compat): a v1 file written before
         // `drop_zone_hint_dismissed` existed must still load, defaulting the
@@ -616,6 +668,8 @@ mod io_tests {
         let outcome = load_settings(tmp.path()).unwrap();
         assert!(!outcome.value.drop_zone_hint_dismissed);
         assert!(outcome.value.first_launch_done);
+        // A pre-updater v1 file defaults the channel (docs/06 §2 additive keys).
+        assert_eq!(outcome.value.release_channel, ReleaseChannel::Stable);
         assert!(outcome.warning.is_none(), "no coercion happened");
 
         let dismissed = Settings {

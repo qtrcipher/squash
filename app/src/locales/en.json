@@ -93,6 +93,28 @@
     "note": "If Squash crashes, send a report to help fix it. A report contains only: the crash location (stack trace), the app version, your operating system and processor type, enabled features, and your language. File contents are never sent, and your home folder in any path is replaced with \"~\". Off by default — nothing is ever sent unless you turn this on.",
     "unavailable": "Crash reporting is not available in this build."
   },
+  "updates": {
+    "autoCheck": "Automatically check for updates",
+    "autoCheckNote": "On launch, Squash downloads a small release manifest from GitHub Releases to see if a newer version exists. Like any web request, GitHub sees your IP address — nothing else is sent. Off by default; the button below always works regardless.",
+    "channel": "Release channel",
+    "channels": {
+      "stable": "Stable",
+      "beta": "Beta"
+    },
+    "channelNote": "Beta delivers prerelease builds — newest fixes and features before they're final, with the occasional rough edge.",
+    "checkNow": "Check for updates",
+    "checking": "Checking for updates…",
+    "upToDate": "Squash is up to date.",
+    "checkFailed": "Couldn't check for updates. Check your connection, then retry.",
+    "availableTitle": "Update available",
+    "availableBody": "Squash {{version}} is available.",
+    "downloadAndInstall": "Download and install",
+    "later": "Later",
+    "downloading": "Downloading and installing…",
+    "installFailed": "Couldn't install the update.",
+    "readyToRestart": "Update installed. Restart Squash to start using the new version.",
+    "restartNow": "Restart now"
+  },
   "onboarding": {
     "title": "Welcome to Squash",
     "intro": "A fast, no-nonsense file compressor. Pick your language and theme — you can change both later in Settings.",

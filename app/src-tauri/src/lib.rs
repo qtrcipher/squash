@@ -16,6 +16,7 @@ mod commands;
 mod logging;
 mod open;
 mod state;
+mod updater;
 
 use state::{spawn_forwarder, AppState, TauriSink};
 use std::sync::Arc;
@@ -54,7 +55,9 @@ pub fn run() {
         }))
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_opener::init())
+        .plugin(tauri_plugin_updater::Builder::new().build())
         .manage(Arc::clone(&app_state))
+        .manage(updater::UpdaterState::default())
         .setup(move |app| {
             // Restore-on-launch (docs/06 §2): resubmit unfinished jobs, then
             // attach a progress forwarder to each. Events emitted before the
@@ -94,6 +97,9 @@ pub fn run() {
             commands::reveal_logs,
             commands::open_default_apps_settings,
             commands::take_pending_open_paths,
+            updater::check_for_update,
+            updater::download_and_install_update,
+            updater::restart_app,
         ])
         .build(tauri::generate_context!())
         .expect("error while building Squash");

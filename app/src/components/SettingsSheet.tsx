@@ -4,6 +4,7 @@ import { api, type Settings } from "../api";
 import { initCrashReporting, shutdownCrashReporting } from "../crashReporting";
 import { applyTheme } from "../format";
 import i18n from "../i18n";
+import type { UpdateState } from "../state/updater";
 import CrashReportingField from "./CrashReportingField";
 import Sheet from "./Sheet";
 
@@ -17,13 +18,17 @@ export default function SettingsSheet({
   settings,
   readOnly,
   crashReportingAvailable,
+  updateState,
   onSaved,
+  onCheckForUpdates,
   onClose,
 }: {
   settings: Settings;
   readOnly: boolean;
   crashReportingAvailable: boolean;
+  updateState: UpdateState;
   onSaved: (settings: Settings) => void;
+  onCheckForUpdates: () => void;
   onClose: () => void;
 }) {
   const { t } = useTranslation();
@@ -164,6 +169,66 @@ export default function SettingsSheet({
         available={crashReportingAvailable}
         onChange={(crash_reporting) => update({ crash_reporting })}
       />
+
+      <div className="field">
+        <label className="field-label" htmlFor="settings-update-checks">
+          {t("updates.autoCheck")}
+        </label>
+        <div className="field-row">
+          <input
+            id="settings-update-checks"
+            type="checkbox"
+            checked={draft.update_check_opt_in}
+            onChange={(event) => update({ update_check_opt_in: event.target.checked })}
+          />
+        </div>
+        <p className="sheet-note">{t("updates.autoCheckNote")}</p>
+      </div>
+
+      <div className="field">
+        <label className="field-label" htmlFor="settings-release-channel">
+          {t("updates.channel")}
+        </label>
+        <select
+          id="settings-release-channel"
+          className="input"
+          value={draft.release_channel}
+          onChange={(event) =>
+            update({ release_channel: event.target.value as Settings["release_channel"] })
+          }
+        >
+          <option value="stable">{t("updates.channels.stable")}</option>
+          <option value="beta">{t("updates.channels.beta")}</option>
+        </select>
+        <p className="sheet-note">{t("updates.channelNote")}</p>
+      </div>
+
+      <div className="field">
+        <span className="field-label">{t("updates.checkNow")}</span>
+        <div className="field-row">
+          <button
+            type="button"
+            className="button"
+            disabled={updateState.kind === "checking"}
+            onClick={onCheckForUpdates}
+          >
+            {updateState.kind === "checking" ? t("updates.checking") : t("updates.checkNow")}
+          </button>
+        </div>
+        {updateState.kind === "upToDate" && (
+          <p className="sheet-note" role="status">
+            {t("updates.upToDate")}
+          </p>
+        )}
+        {updateState.kind === "error" && (
+          <p className="banner error" role="alert">
+            {t(updateState.during === "install" ? "updates.installFailed" : "updates.checkFailed")}{" "}
+            <button type="button" className="button small" onClick={onCheckForUpdates}>
+              {t("actions.retry")}
+            </button>
+          </p>
+        )}
+      </div>
     </Sheet>
   );
 }

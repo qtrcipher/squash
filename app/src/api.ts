@@ -15,6 +15,16 @@ export type { CrashReportingConfig };
 export type Operation = "compress" | "extract";
 export type JobStatus = "queued" | "running" | "finished" | "failed" | "cancelled";
 
+/** Updater release channel (docs/03 S6) — mirrors the core `ReleaseChannel`. */
+export type ReleaseChannel = "stable" | "beta";
+
+/** What a successful update check returns (D3 sheet content). */
+export interface UpdateInfo {
+  version: string;
+  notes: string | null;
+  date: string | null;
+}
+
 /** S4 row model (docs/03 S4) — mirrors the host's `JobEntryDto`. */
 export interface JobEntry {
   id: string;
@@ -56,6 +66,8 @@ export interface Settings {
   };
   update_check_opt_in: boolean;
   activation_counter_opt_in: boolean;
+  /** Updater channel (docs/03 S6): stable (default) or beta prereleases. */
+  release_channel: ReleaseChannel;
   first_launch_done: boolean;
   drop_zone_hint_dismissed: boolean;
   /** S6 verbose toggle — writes the local debug log (docs/06 §3). */
@@ -160,4 +172,22 @@ export const api = {
   /** Subscribe to the open-paths nudge; the callback should pull, not read a payload. */
   onOpenPaths: (callback: () => void): Promise<UnlistenFn> =>
     listen(OPEN_PATHS_EVENT, () => callback()),
+
+  /**
+   * Check the channel's manifest on GitHub Releases for a newer version
+   * (docs/03 S6/D3). Resolves `null` when up-to-date; rejects on network /
+   * manifest errors so the caller can show the error-with-retry state.
+   */
+  checkForUpdate: (channel: ReleaseChannel): Promise<UpdateInfo | null> =>
+    invoke<UpdateInfo | null>("check_for_update", { channel }),
+
+  /**
+   * Download, verify (updater signature) and install the update found by the
+   * last check. On Windows the installer exits the app; elsewhere call
+   * `restartApp` when the user chooses to.
+   */
+  downloadAndInstallUpdate: (): Promise<void> => invoke<void>("download_and_install_update"),
+
+  /** Restart into the installed update (macOS/Linux). Never resolves. */
+  restartApp: (): Promise<void> => invoke<void>("restart_app"),
 };

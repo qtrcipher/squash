@@ -17,6 +17,7 @@ function settings(overrides: Partial<Settings> = {}): Settings {
     extract: { dest_policy: "same_folder", loose_files_policy: "new_folder" },
     update_check_opt_in: false,
     activation_counter_opt_in: false,
+    release_channel: "stable",
     first_launch_done: false,
     drop_zone_hint_dismissed: false,
     debug_logging: false,

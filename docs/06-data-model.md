@@ -28,8 +28,9 @@ All timestamps RFC 3339 UTC. All paths stored as plain strings, **never canonica
 | `default_format` | enum `zip\|7z\|tar.gz\|tar.zst\|gz\|xz\|zst` | `zip` | create-capable formats only (doc 05 §4) |
 | `extract.dest_policy` | enum `same_folder\|ask` | `same_folder` | matches S3 default (doc 03 F3) |
 | `extract.loose_files_policy` | enum `new_folder\|here` | `new_folder` | anti–desktop-explosion default (doc 03 F3) |
-| `update_check_opt_in` | bool | `false` | — |
+| `update_check_opt_in` | bool | `false` | S6 auto-check-on-launch consent (docs/03 S6; manual check always available) |
 | `activation_counter_opt_in` | bool | `false` | local-only counter (doc 01 §5) |
+| `release_channel` | enum `stable\|beta` | `stable` | updater channel (doc 03 S6/D3); unknown → `stable` + warn |
 | `first_launch_done` | bool | `false` | drives S7 (doc 03 F1) |
 | `drop_zone_hint_dismissed` | bool | `false` | dismisses the one-time S1 drop-zone hint (doc 03 F1) |
 | `debug_logging` | bool | `false` | S6 verbose toggle — writes the local debug log (§3 "Debug log") |

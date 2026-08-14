@@ -27,7 +27,7 @@ pub use presets::{UserPreset, MAX_USER_PRESETS};
 pub use queue::{load_queue, partition_restorable, save_queue, PersistedQueue, QueuedJob};
 pub use settings::{
     load_settings, save_settings, DestPolicy, ExtractSettings, Language, LooseFilesPolicy,
-    Settings, Theme,
+    ReleaseChannel, Settings, Theme,
 };
 
 /// Current schema version for every store file (docs/06 §4).
