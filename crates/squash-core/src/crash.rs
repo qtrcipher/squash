@@ -20,6 +20,8 @@
 //! feature, enabled by the shells (GUI host + CLI) but not by `squash-bench`.
 
 use std::sync::atomic::{AtomicBool, Ordering};
+#[cfg(test)]
+use std::sync::Mutex;
 
 /// Sentry DSN baked in at build time via `SQUASH_SENTRY_DSN` (release CI sets
 /// it; it is never committed). `None` or empty → crash reporting is
@@ -29,6 +31,13 @@ pub const DSN: Option<&str> = option_env!("SQUASH_SENTRY_DSN");
 /// Runtime consent gate. Checked in `before_send`, so revoking consent
 /// mid-session drops every later event even if a client was initialized.
 static CONSENT: AtomicBool = AtomicBool::new(false);
+
+/// Serializes every test that touches [`CONSENT`]. Lives at file scope so the
+/// outer `tests` module and the feature-gated `sentry_integration::tests`
+/// share one lock — a test asserting the default while another flips the
+/// gate is a scheduling race (failed on Ubuntu/Windows CI, passed on macOS).
+#[cfg(test)]
+static CONSENT_TEST_LOCK: Mutex<()> = Mutex::new(());
 
 /// Whether this build can report crashes at all (non-empty DSN baked in).
 pub fn available() -> bool {
@@ -216,10 +225,10 @@ mod sentry_integration {
     mod tests {
         use super::*;
         use sentry::protocol::{Exception, Frame, Stacktrace, Values};
-        use std::sync::Mutex;
 
-        /// The consent gate is process-global: tests that flip it serialize.
-        static TEST_LOCK: Mutex<()> = Mutex::new(());
+        /// The consent gate is process-global: tests that flip it serialize
+        /// on the file-scope lock shared with the outer `tests` module.
+        use super::super::CONSENT_TEST_LOCK as TEST_LOCK;
 
         #[test]
         fn consent_off_initializes_nothing() {
@@ -333,6 +342,8 @@ mod tests {
 
     #[test]
     fn consent_gate_defaults_off_and_flips() {
+        let _guard = CONSENT_TEST_LOCK.lock().unwrap();
+        set_consent(false);
         assert!(!consent_given());
         set_consent(true);
         assert!(consent_given());
