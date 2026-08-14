@@ -15,6 +15,9 @@ default = ["rar"]
 rar = ["dep:unrar-sys"]
 
 [dependencies]
+# `log` facade only — the shells (CLI env_logger, GUI file logger) install
+# the actual sink; core just instruments decision points (docs/06 §3 logs).
+log = "0.4"
 serde.workspace = true
 serde_json.workspace = true
 thiserror.workspace = true

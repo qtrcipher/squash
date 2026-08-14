@@ -71,13 +71,17 @@ impl<T> LoadOutcome<T> {
     }
 }
 
-/// The two directories the whole data model lives in (docs/06 §3).
+/// The directories the data model lives in (docs/06 §3).
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct StoreDirs {
     /// `settings.toml`, `presets.toml`.
     pub config_dir: PathBuf,
     /// `history.jsonl`, `queue.json`.
     pub data_dir: PathBuf,
+    /// `logs/squash.log` — the verbose debug log (docs/06 §3 "Debug log").
+    /// `ProjectDirs` has no dedicated log dir, so logs live under the data
+    /// dir on every platform.
+    pub log_dir: PathBuf,
 }
 
 impl StoreDirs {
@@ -89,6 +93,7 @@ impl StoreDirs {
         Some(Self {
             config_dir: dirs.config_dir().to_path_buf(),
             data_dir: dirs.data_dir().to_path_buf(),
+            log_dir: dirs.data_dir().join("logs"),
         })
     }
 }
@@ -124,6 +129,7 @@ pub(crate) fn write_file_atomic(dir: &Path, name: &str, contents: &[u8]) -> io::
         f.sync_all()?;
     }
     fs::rename(&tmp, &target)?;
+    log::debug!("store: wrote {}", target.display());
     Ok(())
 }
 
@@ -173,6 +179,7 @@ mod tests {
         let dirs = StoreDirs::resolve().expect("ProjectDirs resolves on desktop OSes");
         assert!(dirs.config_dir.is_absolute());
         assert!(dirs.data_dir.is_absolute());
+        assert_eq!(dirs.log_dir, dirs.data_dir.join("logs"));
     }
 
     #[test]

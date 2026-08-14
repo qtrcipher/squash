@@ -83,7 +83,25 @@ fn run_job(registry: &FormatRegistry, item: WorkItem) {
         let _ = item.events.send(event);
     };
 
+    log::debug!(
+        "job start: {} [{}] → {} (format {}, preset {})",
+        match item.job.operation {
+            Operation::Compress => "compress",
+            Operation::Extract => "extract",
+        },
+        item.job
+            .inputs
+            .iter()
+            .map(|p| p.display().to_string())
+            .collect::<Vec<_>>()
+            .join(", "),
+        item.job.destination.display(),
+        item.job.format.name(),
+        item.job.preset.id(),
+    );
+
     if item.cancelled.load(Ordering::Relaxed) {
+        log::debug!("job cancelled before it started");
         send(ProgressEvent::Failed {
             error: SquashError::Cancelled,
         });
@@ -91,6 +109,10 @@ fn run_job(registry: &FormatRegistry, item: WorkItem) {
     }
 
     let Some(handler) = registry.handler_for(item.job.format) else {
+        log::debug!(
+            "no handler registered for format {}",
+            item.job.format.name()
+        );
         send(ProgressEvent::Failed {
             error: SquashError::UnsupportedFormat,
         });
@@ -101,6 +123,14 @@ fn run_job(registry: &FormatRegistry, item: WorkItem) {
         Operation::Extract => handler.can_extract(),
     };
     if !capable {
+        log::debug!(
+            "format {} cannot {} — rejecting",
+            item.job.format.name(),
+            match item.job.operation {
+                Operation::Compress => "create",
+                Operation::Extract => "extract",
+            }
+        );
         send(ProgressEvent::Failed {
             error: SquashError::UnsupportedFormat,
         });
@@ -131,8 +161,17 @@ fn run_job(registry: &FormatRegistry, item: WorkItem) {
     };
 
     match result {
-        Ok(stats) => send(ProgressEvent::Finished { stats }),
+        Ok(stats) => {
+            log::debug!(
+                "job finished: {} → {} bytes in {:?}",
+                stats.in_bytes,
+                stats.out_bytes,
+                stats.duration,
+            );
+            send(ProgressEvent::Finished { stats });
+        }
         Err(error) => {
+            log::debug!("job failed: {}", error.code());
             // docs/03 F2: partial compress output is deleted automatically.
             if item.job.operation == Operation::Compress {
                 let _ = std::fs::remove_file(&item.job.destination);

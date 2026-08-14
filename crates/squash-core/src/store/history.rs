@@ -121,6 +121,12 @@ pub const MAX_AGE_DAYS: i64 = 30;
 /// GUI and CLI appends never interleave mid-line). The record must validate;
 /// invalid records are rejected before the file is touched.
 pub fn append_history(data_dir: &Path, record: &HistoryRecord) -> Result<(), StoreError> {
+    log::debug!(
+        "store: appending history record {} ({:?}, {:?})",
+        record.id,
+        record.op,
+        record.status
+    );
     record.validate().map_err(|reason| StoreError::Corrupt {
         file: HISTORY_FILE,
         reason,

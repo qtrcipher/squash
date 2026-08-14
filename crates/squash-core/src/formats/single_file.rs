@@ -166,6 +166,12 @@ fn create_with<E: Write>(
 ) -> Result<JobStats, SquashError> {
     let start = Instant::now();
     let input = single_file_input(&job.inputs)?;
+    log::debug!(
+        "{} create: {} → {}",
+        job.format.name(),
+        input.display(),
+        job.destination.display()
+    );
     let mut reader = BufReader::new(File::open(input).map_err(map_io)?);
     let file = File::create(&job.destination).map_err(map_io)?;
     let mut encoder = make_encoder(file)?;
@@ -195,6 +201,12 @@ fn extract_with(
     let mut reader = decoder(file).map_err(map_decode)?;
     // Strip exactly ONE codec extension (`data.csv.gz` → `data.csv`).
     let target = dest_dir.join(archive_stem(archive, format));
+    log::debug!(
+        "{} extract: {} → {}",
+        format.name(),
+        archive.display(),
+        target.display()
+    );
     // A name with no extension would target the archive itself — refuse
     // before `File::create` truncates the input we are reading.
     if target == archive {

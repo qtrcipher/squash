@@ -19,6 +19,7 @@ function settings(overrides: Partial<Settings> = {}): Settings {
     activation_counter_opt_in: false,
     first_launch_done: false,
     drop_zone_hint_dismissed: false,
+    debug_logging: false,
     ...overrides,
   };
 }

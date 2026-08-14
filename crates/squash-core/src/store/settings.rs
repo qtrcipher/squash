@@ -71,6 +71,10 @@ pub struct Settings {
     /// Dismisses the one-time drop-zone hint on S1 (docs/03 F1: no tutorial,
     /// a single contextual hint only).
     pub drop_zone_hint_dismissed: bool,
+    /// Verbose/debug logging to a local rolling log file (docs/06 §3 "Debug
+    /// log"). Off by default; the GUI's S6 toggle flips it. Logs never leave
+    /// the device — the user chooses to attach them to an issue.
+    pub debug_logging: bool,
 }
 
 impl Default for Settings {
@@ -88,6 +92,7 @@ impl Default for Settings {
             activation_counter_opt_in: false,
             first_launch_done: false,
             drop_zone_hint_dismissed: false,
+            debug_logging: false,
         }
     }
 }
@@ -130,6 +135,7 @@ mod tests {
         assert!(!s.activation_counter_opt_in);
         assert!(!s.first_launch_done);
         assert!(!s.drop_zone_hint_dismissed);
+        assert!(!s.debug_logging);
         s.validate().unwrap();
     }
 
@@ -178,6 +184,7 @@ struct RawSettings {
     activation_counter_opt_in: Option<bool>,
     first_launch_done: Option<bool>,
     drop_zone_hint_dismissed: Option<bool>,
+    debug_logging: Option<bool>,
 }
 
 #[derive(Debug, Default, Deserialize)]
@@ -359,6 +366,7 @@ fn coerce(raw: RawSettings) -> (Settings, Vec<String>) {
         activation_counter_opt_in: raw.activation_counter_opt_in.unwrap_or(false),
         first_launch_done: raw.first_launch_done.unwrap_or(false),
         drop_zone_hint_dismissed: raw.drop_zone_hint_dismissed.unwrap_or(false),
+        debug_logging: raw.debug_logging.unwrap_or(false),
     };
     (settings, warnings)
 }
@@ -437,6 +445,7 @@ fn overlay(doc: &mut toml_edit::DocumentMut, s: &Settings) {
     doc["activation_counter_opt_in"] = value(s.activation_counter_opt_in);
     doc["first_launch_done"] = value(s.first_launch_done);
     doc["drop_zone_hint_dismissed"] = value(s.drop_zone_hint_dismissed);
+    doc["debug_logging"] = value(s.debug_logging);
 }
 
 #[cfg(test)]
@@ -474,6 +483,7 @@ mod io_tests {
             activation_counter_opt_in: true,
             first_launch_done: true,
             drop_zone_hint_dismissed: true,
+            debug_logging: true,
             ..Settings::default()
         };
         let outcome = save_and_reload(tmp.path(), &s);

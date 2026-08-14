@@ -13,6 +13,7 @@
 //! single-instance plugin (Windows/Linux warm start).
 
 mod commands;
+mod logging;
 mod open;
 mod state;
 
@@ -89,6 +90,7 @@ pub fn run() {
             commands::classify_paths,
             commands::path_exists,
             commands::reveal_path,
+            commands::reveal_logs,
             commands::open_default_apps_settings,
             commands::take_pending_open_paths,
         ])

@@ -43,6 +43,11 @@ impl FormatHandler for ZipHandler {
         let level = super::clamped_level(Format::Zip, job.preset)?;
         // Walk first: a bad input must not leave an empty archive behind.
         let entries = walk_inputs(&job.inputs)?;
+        log::debug!(
+            "zip create: {} entries → {} (level {level})",
+            entries.len(),
+            job.destination.display()
+        );
 
         let file = File::create(&job.destination).map_err(map_io)?;
         let mut zip = ZipWriter::new(file);
@@ -101,6 +106,12 @@ impl FormatHandler for ZipHandler {
         let start = Instant::now();
         let file = File::open(archive).map_err(map_io)?;
         let mut zip = ZipArchive::new(file).map_err(map_zip)?;
+        log::debug!(
+            "zip extract: {} ({} entries) → {}",
+            archive.display(),
+            zip.len(),
+            dest_dir.display()
+        );
 
         // Pass 1: entry metadata drives the docs/03 F3 layout decision and
         // rejects encrypted archives before anything is written.

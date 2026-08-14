@@ -23,3 +23,7 @@ pub use format::{Format, FormatHandler, FormatRegistry, HandlerContext};
 pub use job::{Job, JobId, JobOptions, Operation};
 pub use presets::{Preset, PresetParams};
 pub use progress::{JobStats, ProgressEvent};
+
+/// Whether this build includes RAR extraction (docs/05 §4/§7) — reported in
+/// the verbose-log header so support can tell builds apart.
+pub const FEATURE_RAR: bool = cfg!(feature = "rar");

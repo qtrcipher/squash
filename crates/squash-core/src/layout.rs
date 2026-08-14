@@ -28,9 +28,20 @@ pub fn extraction_target(
     entries: &[EntryMeta],
 ) -> PathBuf {
     if has_single_root_folder(entries) {
+        log::debug!(
+            "layout: {} has a single root folder — extracting as-is into {}",
+            archive.display(),
+            dest.display()
+        );
         dest.to_path_buf()
     } else {
-        dest.join(archive_stem(archive, format))
+        let folder = dest.join(archive_stem(archive, format));
+        log::debug!(
+            "layout: {} has loose/multiple roots — extracting into new folder {}",
+            archive.display(),
+            folder.display()
+        );
+        folder
     }
 }
 

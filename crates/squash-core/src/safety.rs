@@ -33,11 +33,21 @@ pub fn sanitize_entry_path(dest: &Path, entry: &Path) -> Result<PathBuf, SquashE
             }
             Component::CurDir => {}
             Component::ParentDir | Component::RootDir | Component::Prefix(_) => {
+                log::debug!(
+                    "sanitizer blocked entry path {:?} (dest {})",
+                    entry,
+                    dest.display()
+                );
                 return Err(SquashError::PathTraversalBlocked);
             }
         }
     }
     if components == 0 {
+        log::debug!(
+            "sanitizer blocked empty entry path {:?} (dest {})",
+            entry,
+            dest.display()
+        );
         return Err(SquashError::PathTraversalBlocked);
     }
     Ok(out)
@@ -57,6 +67,11 @@ pub fn sanitize_link_target(
 ) -> Result<PathBuf, SquashError> {
     debug_assert!(link_path.starts_with(dest));
     if target.is_absolute() {
+        log::debug!(
+            "sanitizer blocked absolute link target {:?} (link {})",
+            target,
+            link_path.display()
+        );
         return Err(SquashError::PathTraversalBlocked);
     }
     let mut resolved = link_path
@@ -71,15 +86,30 @@ pub fn sanitize_link_target(
                 // Popping at `dest` itself would escape the destination.
                 resolved.pop();
                 if !resolved.starts_with(dest) {
+                    log::debug!(
+                        "sanitizer blocked escaping link target {:?} (link {})",
+                        target,
+                        link_path.display()
+                    );
                     return Err(SquashError::PathTraversalBlocked);
                 }
             }
             Component::RootDir | Component::Prefix(_) => {
+                log::debug!(
+                    "sanitizer blocked link target {:?} (link {})",
+                    target,
+                    link_path.display()
+                );
                 return Err(SquashError::PathTraversalBlocked);
             }
         }
     }
     if !resolved.starts_with(dest) {
+        log::debug!(
+            "sanitizer blocked link target {:?} resolving outside {}",
+            target,
+            dest.display()
+        );
         return Err(SquashError::PathTraversalBlocked);
     }
     Ok(resolved)

@@ -176,6 +176,12 @@ fn create_with<E: Write>(
     let start = Instant::now();
     // Walk first: a bad input must not leave an empty archive behind.
     let entries = walk_inputs(&job.inputs)?;
+    log::debug!(
+        "{} create: {} entries → {}",
+        job.format.name(),
+        entries.len(),
+        job.destination.display()
+    );
     let file = File::create(&job.destination).map_err(map_io)?;
     let encoder = make_encoder(file)?;
     let (encoder, in_bytes) = build_tar(encoder, &entries, ctx)?;
@@ -222,6 +228,12 @@ fn extract_with(
     decoder: impl Fn(File) -> io::Result<Box<dyn Read>>,
 ) -> Result<JobStats, SquashError> {
     let start = Instant::now();
+    log::debug!(
+        "{} extract: {} → {}",
+        format.name(),
+        archive.display(),
+        dest_dir.display()
+    );
     let open = || -> Result<Box<dyn Read>, SquashError> {
         let file = File::open(archive).map_err(map_io)?;
         decoder(file).map_err(map_decode)

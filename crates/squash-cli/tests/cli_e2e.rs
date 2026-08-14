@@ -224,6 +224,69 @@ fn extract_default_destination_is_archive_folder() {
     assert!(tmp.path().join("data/hello.txt").exists());
 }
 
+// --- verbose logging (docs/06 §3 "Debug log") --------------------------------
+
+#[test]
+fn verbose_logs_to_stderr_never_stdout() {
+    let tmp = tempfile::tempdir().unwrap();
+    build_tree(tmp.path());
+    let archive = tmp.path().join("out.zip");
+
+    let output = squash()
+        .args(["-v", "c", "data", "-o"])
+        .arg(&archive)
+        .current_dir(tmp.path())
+        .assert()
+        .success()
+        .get_output()
+        .clone();
+    let stdout = String::from_utf8(output.stdout).unwrap();
+    let stderr = String::from_utf8(output.stderr).unwrap();
+    // The detailed stream (levels + timestamps) is on stderr…
+    assert!(stderr.contains("DEBUG"), "verbose run logs debug: {stderr}");
+    assert!(stderr.contains("job start"), "{stderr}");
+    // …and stdout stays exactly the human summary line — pipe-clean.
+    assert!(!stdout.contains("DEBUG"), "{stdout}");
+    assert!(stdout.contains("out.zip —"), "{stdout}");
+}
+
+#[test]
+fn squash_log_env_var_enables_debug_without_the_flag() {
+    let tmp = tempfile::tempdir().unwrap();
+    build_tree(tmp.path());
+    let archive = tmp.path().join("out.zip");
+
+    let output = squash()
+        .args(["c", "data", "-o"])
+        .arg(&archive)
+        .current_dir(tmp.path())
+        .env("SQUASH_LOG", "debug")
+        .assert()
+        .success()
+        .get_output()
+        .clone();
+    let stderr = String::from_utf8(output.stderr).unwrap();
+    assert!(stderr.contains("DEBUG"), "{stderr}");
+}
+
+#[test]
+fn default_run_is_quiet_on_stderr() {
+    let tmp = tempfile::tempdir().unwrap();
+    build_tree(tmp.path());
+    let archive = tmp.path().join("out.zip");
+
+    let output = squash()
+        .args(["c", "data", "-o"])
+        .arg(&archive)
+        .current_dir(tmp.path())
+        .assert()
+        .success()
+        .get_output()
+        .clone();
+    let stderr = String::from_utf8(output.stderr).unwrap();
+    assert!(!stderr.contains("DEBUG"), "{stderr}");
+}
+
 // --- single-file codecs (gz / xz / zst) --------------------------------------
 
 #[test]

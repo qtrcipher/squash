@@ -199,6 +199,12 @@ impl AppState {
         if let Err(err) = store::enforce_retention_now(&dirs.data_dir) {
             eprintln!("squash: history compaction failed ({err})");
         }
+        // Verbose debug log (docs/06 §3 "Debug log"): the sink is installed
+        // at launch; the persisted S6 toggle decides whether it writes.
+        crate::logging::init();
+        if settings_outcome.value.debug_logging {
+            crate::logging::enable(&dirs.log_dir);
+        }
         Self {
             dirs,
             engine: Engine::new(),
@@ -242,7 +248,19 @@ impl AppState {
             });
         }
         store::save_settings(&self.dirs.config_dir, &settings)?;
-        *self.settings.lock().expect("settings lock") = settings;
+        let debug_on = settings.debug_logging;
+        let mut guard = self.settings.lock().expect("settings lock");
+        let toggled = guard.debug_logging != debug_on;
+        *guard = settings;
+        drop(guard);
+        // The S6 verbose toggle takes effect immediately (docs/06 §3).
+        if toggled {
+            if debug_on {
+                crate::logging::enable(&self.dirs.log_dir);
+            } else {
+                crate::logging::disable();
+            }
+        }
         Ok(())
     }
 
@@ -607,6 +625,7 @@ mod tests {
         let dirs = store::StoreDirs {
             config_dir: tmp.path().join("config"),
             data_dir: tmp.path().join("data"),
+            log_dir: tmp.path().join("data/logs"),
         };
         (tmp, dirs)
     }
@@ -861,6 +880,34 @@ mod tests {
         );
         // Drained: a second pull returns nothing (no duplicate sheets).
         assert!(state.take_pending_open_paths().is_empty());
+    }
+
+    #[test]
+    fn debug_logging_toggle_persists_and_writes_log_file() {
+        // Serialize with logging.rs's global-logger test.
+        let _guard = crate::logging::TEST_LOCK.lock().unwrap();
+        let (_tmp, dirs) = test_dirs();
+        let state = AppState::new(dirs.clone());
+        let (mut settings, _, _) = state.settings_snapshot();
+        assert!(!settings.debug_logging);
+
+        settings.debug_logging = true;
+        state.set_settings(settings).unwrap();
+        // Persisted through the settings discipline (docs/06 §2)…
+        let reloaded = store::load_settings(&dirs.config_dir).unwrap().value;
+        assert!(reloaded.debug_logging);
+        // …and the host-side log file now exists in the log dir (docs/06 §3).
+        let log_file = dirs.log_dir.join(crate::logging::LOG_FILE);
+        assert!(log_file.exists());
+        let contents = std::fs::read_to_string(&log_file).unwrap();
+        assert!(contents.contains("verbose logging started"), "{contents}");
+
+        let mut off = state.settings_snapshot().0;
+        off.debug_logging = false;
+        state.set_settings(off).unwrap();
+        let reloaded = store::load_settings(&dirs.config_dir).unwrap().value;
+        assert!(!reloaded.debug_logging);
+        crate::logging::disable();
     }
 
     #[test]

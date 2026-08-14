@@ -50,6 +50,11 @@ impl FormatHandler for RarHandler {
         ctx: &HandlerContext,
     ) -> Result<JobStats, SquashError> {
         let start = Instant::now();
+        log::debug!(
+            "rar extract: {} → {}",
+            archive.display(),
+            dest_dir.display()
+        );
         // Open through the fs first so missing/unreadable archives get the
         // io taxonomy, identical to the other handlers.
         File::open(archive).map_err(map_io)?;

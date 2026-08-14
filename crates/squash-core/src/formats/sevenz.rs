@@ -47,6 +47,11 @@ impl FormatHandler for SevenZHandler {
         let level = super::clamped_level(Format::SevenZ, job.preset)?;
         // Walk first: a bad input must not leave an empty archive behind.
         let entries = walk_inputs(&job.inputs)?;
+        log::debug!(
+            "7z create: {} entries → {} (level {level})",
+            entries.len(),
+            job.destination.display()
+        );
 
         let file = File::create(&job.destination).map_err(map_io)?;
         let mut writer = ArchiveWriter::new(file).map_err(map_7z_write)?;
@@ -95,6 +100,7 @@ impl FormatHandler for SevenZHandler {
         let start = Instant::now();
         let file = File::open(archive).map_err(map_io)?;
         let mut reader = ArchiveReader::new(file, Password::empty()).map_err(map_7z_decode)?;
+        log::debug!("7z extract: {} → {}", archive.display(), dest_dir.display());
 
         // Metadata pass drives the docs/03 F3 layout decision before anything
         // is written.

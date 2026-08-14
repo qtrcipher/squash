@@ -125,6 +125,24 @@ export default function SettingsSheet({
           <option value="tar.zst">tar.zst</option>
         </select>
       </div>
+
+      <div className="field">
+        <label className="field-label" htmlFor="settings-verbose-logging">
+          {t("settings.verboseLogging")}
+        </label>
+        <div className="field-row">
+          <input
+            id="settings-verbose-logging"
+            type="checkbox"
+            checked={draft.debug_logging}
+            onChange={(event) => update({ debug_logging: event.target.checked })}
+          />
+          <button type="button" className="button" onClick={() => void api.revealLogs()}>
+            {t("settings.revealLogs")}
+          </button>
+        </div>
+        <p className="sheet-note">{t("settings.verboseLoggingNote")}</p>
+      </div>
     </Sheet>
   );
 }

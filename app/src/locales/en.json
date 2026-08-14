@@ -82,6 +82,9 @@
     },
     "defaultPreset": "Default preset",
     "defaultFormat": "Default format",
+    "verboseLogging": "Verbose logging",
+    "verboseLoggingNote": "Writes a detailed debug log for bug reports. Logs stay on this device — attach them to a GitHub issue yourself if you choose.",
+    "revealLogs": "Reveal log folder",
     "saveFailed": "Couldn't save settings.",
     "readOnlyWarning": "Settings were written by a newer version of Squash and are read-only."
   },

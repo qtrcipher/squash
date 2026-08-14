@@ -32,6 +32,7 @@ All timestamps RFC 3339 UTC. All paths stored as plain strings, **never canonica
 | `activation_counter_opt_in` | bool | `false` | local-only counter (doc 01 §5) |
 | `first_launch_done` | bool | `false` | drives S7 (doc 03 F1) |
 | `drop_zone_hint_dismissed` | bool | `false` | dismisses the one-time S1 drop-zone hint (doc 03 F1) |
+| `debug_logging` | bool | `false` | S6 verbose toggle — writes the local debug log (§3 "Debug log") |
 
 Crash-reporting consent is **not** modeled yet — doc 01 §6.3 is an open owner question; the key ships only when decided. Unknown keys are preserved on rewrite (forward-compat).
 
@@ -70,6 +71,7 @@ Built-ins (`builtin:fast|balanced|max`) are **code-defined** in `squash-core`'s 
 - **JSONL for history:** append-only writes are cheap and crash-safe per line; human-greppable; no index needed for one chronological list (S4). SQLite rejected: extra dependency and binary opacity for a ≤200-row list.
 - **JSON for queue:** exact serde mirror of the core `Job` type — single source of truth, zero mapping layer. Machine-only file; TOML's human-friendliness buys nothing.
 - **Locations via `directories` `ProjectDirs`:** config files → config dir (macOS `~/Library/Application Support/dev.squash.Squash`, Windows `%APPDATA%\dev.squash\Squash\config`, Linux `~/.config/squash`); history + queue → data dir (Windows `%LOCALAPPDATA%\dev.squash\Squash\data`, Linux `~/.local/share/squash`). Four small files, one per entity — no single store, so a corrupt history can never take settings down with it.
+- **Debug log — `logs/squash.log` in the data dir:** written only while verbose logging is on (GUI S6 `debug_logging` toggle; CLI `-v`/`--verbose` or `SQUASH_LOG=debug`, which logs to **stderr** instead — stdout stays pipe-clean for `--json`). Facility is the `log` facade over the whole Rust codebase: `squash-core` instruments decision points (job start/end with stats, per-format create/extract choices, the extract-layout decision, sanitizer blocks, store writes) at debug level; the shells install the sink (CLI: `env_logger`; GUI: a rolling file writer — 1 MiB cap, one rotated generation `squash.1.log`). Each verbose session opens with a header line carrying app version, OS/arch, and enabled features (e.g. `rar`) — the support gold for reproducing bug reports. `ProjectDirs` has no dedicated log dir, so logs live under the data dir on every platform; S6's "Reveal log folder" lands the user on the file.
 
 ## 4. Schema versioning & migration
 
@@ -87,7 +89,7 @@ Built-ins (`builtin:fast|balanced|max`) are **code-defined** in `squash-core`'s 
 
 - **Stored:** user preferences, user preset definitions, job metadata (paths in/out, sizes, timestamps, error codes), unfinished queue specs. All of it lives in two user-visible directories.
 - **Never stored:** archive *contents* (S5's listing is computed live and discarded), file contents or hashes, passwords (no encryption in v1 — doc 01 §3), hostnames/usernames beyond what paths already contain, any analytics. The opt-in activation counter is a local integer the user can inspect in S6 (doc 01 §5).
-- **Caveat to state honestly:** history and queue contain absolute paths, which may reveal user names and folder structures. That is the entire privacy surface; docs must say so plainly.
+- **Caveat to state honestly:** history and queue contain absolute paths, which may reveal user names and folder structures. That is the entire privacy surface; docs must say so plainly. The debug log (`logs/squash.log`) is the same story with more detail — it records absolute paths and timings on purpose (they are what make a bug report actionable). It is written only when the user turns verbose logging on, is never redacted, and **never leaves the device**: the user reveals the folder from S6 and chooses what to attach to a GitHub issue. The S6 toggle label says exactly that.
 - **Wipe:** Settings → "Clear history" (deletes `history.jsonl`); uninstall docs list the two directories; deleting the app-data directory returns Squash to a first-launch state. No hidden stores, no caches with user data — verifiable in source, which is the OSS trust story.
 
 ## 7. Interface-level sketch (who owns what)

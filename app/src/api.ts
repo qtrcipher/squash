@@ -55,6 +55,8 @@ export interface Settings {
   activation_counter_opt_in: boolean;
   first_launch_done: boolean;
   drop_zone_hint_dismissed: boolean;
+  /** S6 verbose toggle — writes the local debug log (docs/06 §3). */
+  debug_logging: boolean;
 }
 
 export interface SettingsResponse {
@@ -119,6 +121,12 @@ export const api = {
   pathExists: (path: string): Promise<boolean> => invoke<boolean>("path_exists", { path }),
 
   revealPath: (path: string): Promise<void> => invoke<void>("reveal_path", { path }),
+
+  /**
+   * S6 "Reveal log folder": opens the OS file manager on the debug log
+   * (docs/06 §3). Logs stay on the device; the user attaches them manually.
+   */
+  revealLogs: (): Promise<void> => invoke<void>("reveal_logs"),
 
   /**
    * S7 "make default handler" (docs/03 F1): opens the OS default-apps UI

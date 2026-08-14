@@ -237,6 +237,19 @@ pub fn reveal_path(path: String) -> Result<(), String> {
     tauri_plugin_opener::reveal_item_in_dir(&path).map_err(|e| e.to_string())
 }
 
+/// S6 "Reveal log folder" (docs/06 §3 "Debug log"): lands the user on the
+/// rolling log file when one exists (verbose mode has written it), else on
+/// the folder itself. The log never leaves the device — the user chooses
+/// what to attach to an issue.
+#[tauri::command]
+pub fn reveal_logs(state: State<'_, SharedState>) -> Result<(), String> {
+    let dir = &state.dirs.log_dir;
+    std::fs::create_dir_all(dir).map_err(|e| e.to_string())?;
+    let file = crate::logging::log_file_path(dir);
+    let target = if file.exists() { file } else { dir.clone() };
+    tauri_plugin_opener::reveal_item_in_dir(&target).map_err(|e| e.to_string())
+}
+
 /// S7 "make default handler" (docs/03 F1/F6): the OS owns file associations,
 /// so the honest move is opening the OS's default-apps UI where one exists.
 /// Windows has a stable `ms-settings:` URI; macOS and Linux have no such

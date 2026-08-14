@@ -14,6 +14,12 @@ pub struct Cli {
     #[arg(long, global = true)]
     pub json: bool,
 
+    /// Verbose logging: per-entry decisions, timings and sanitizer blocks on
+    /// stderr (never stdout). `SQUASH_LOG=debug` does the same and overrides
+    /// this flag's level when set.
+    #[arg(short, long, global = true)]
+    pub verbose: bool,
+
     #[command(subcommand)]
     pub command: Commands,
 }
@@ -123,6 +129,17 @@ mod tests {
     fn missing_inputs_is_usage_error() {
         assert!(Cli::try_parse_from(["squash", "compress"]).is_err());
         assert!(Cli::try_parse_from(["squash"]).is_err());
+    }
+
+    #[test]
+    fn verbose_flag_is_global_and_defaults_off() {
+        let cli = Cli::try_parse_from(["squash", "-v", "c", "src/"]).unwrap();
+        assert!(cli.verbose);
+        // Global args also parse after the subcommand.
+        let cli = Cli::try_parse_from(["squash", "c", "src/", "--verbose"]).unwrap();
+        assert!(cli.verbose);
+        let cli = Cli::try_parse_from(["squash", "x", "a.zip"]).unwrap();
+        assert!(!cli.verbose);
     }
 
     #[test]
