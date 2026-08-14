@@ -32,6 +32,15 @@ To produce a build with crash reporting available:
 
 `option_env!` tracks the variable, so changing or unsetting it re-triggers compilation of `squash-core` — no manual `cargo clean` needed.
 
+## Versioning & changelog
+
+Squash follows [semver](https://semver.org) and keeps a [Keep a Changelog](https://keepachangelog.com/en/1.1.0/)-format [CHANGELOG.md](CHANGELOG.md).
+
+- **What bumps what** — MAJOR: breaking changes to the CLI surface (flags, `--json` schema, exit codes) or the `squash-core` API. MINOR: new formats, features, CLI options — backwards compatible. PATCH: bug fixes and performance work only. While the version is `0.x`, MINOR may contain breaking changes and PATCH may contain small features; the semver contract becomes strict at `1.0.0`.
+- **Who bumps** — only the owner, at release time, as `chore(release): vX.Y.Z` (see "Releasing"). Never bump a version in a feature PR.
+- **Changelog entries** — every PR that changes user-visible behavior adds a bullet under the top `- Unreleased` section of `CHANGELOG.md` (Added / Changed / Fixed / Security). Docs-only and test-only PRs don't need an entry.
+- **Enforcement** — the `release.yml` prepare job fails the release if the git tag doesn't equal `Cargo.toml` `[workspace.package] version` = `app/src-tauri/tauri.conf.json` = `app/package.json`. There is no way to ship a mismatched version.
+
 ## Releasing
 
 Releases are built by `.github/workflows/release.yml`. Everything is driven by the version tag.

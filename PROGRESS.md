@@ -60,16 +60,17 @@
 - [x] Every control × every state: disabled, loading, empty, error (done 2026-08-14: four-state discipline in components + 13-state snapshot matrix incl. validation-error/failed/restoring)
 - [x] GUI snapshots: AR/EN × light/dark (done 2026-08-14: 52 PNGs, real App via mock bridge, pixelmatch check + CI job; found+fixed badge class, bidi isolation, sticky sheet actions)
 - [x] Round-trip corpus tests + fuzzing of archive parsers (done 2026-08-14: 6 cargo-fuzz targets + weekly CI fuzz job; found+fixed unrar trampoline null-ptr UB, regression fixture pinned)
-- [ ] Suite green on all three OSes (CI matrix) (awaiting E2E/snapshot job results — run in progress)
+- [x] Suite green on all three OSes (CI matrix) (done 2026-08-14: run 31832530771 — 8/8 jobs: Rust ×3 OS, frontend, snapshots, E2E ×3 OS)
 - [x] Bugs found → root-cause first — `systematic-debugging` (followed: fs2 lock, verbatim paths, MSVC libs, cfg-gate, test race, fuzz UB — all root-caused, no papering)
 
 ## Phase 6 — Ship v1.0.0
-- [ ] README polish: screenshots, GIF demo, feature matrix vs competitors
-- [ ] Changelog + semver discipline
-- [ ] v1.0.0 GitHub Release, announcement posts (OSS communities)
+- [x] README polish: screenshots, GIF demo, feature matrix vs competitors (done 2026-08-14: 4 real screenshots + honest demo.gif in docs/screenshots/, competitor matrix, real benchmark table, CI/license badges; fixed a brotli overclaim)
+- [x] Changelog + semver discipline (done 2026-08-14: CHANGELOG.md [0.1.0] Unreleased, Keep-a-Changelog; versioning rules in CONTRIBUTING.md)
+- [ ] v1.0.0 GitHub Release, announcement posts (OSS communities) (needs owner: signing secrets + go-ahead to tag)
 
 ## Session log
 Format, newest first, one line per session: `YYYY-MM-DD — what changed — next: <task>`
+- 2026-08-14 — PHASE 5 COMPLETE + Phase 6 docs: E2E flake root-caused (reducer dropped terminal events racing the submit-response snapshot; fix = terminal-regression guard + subscribe-then-snapshot + reconcile pull), Windows E2E spawn fixes (CVE-2024-27980 shell rule); CI 8/8 green (run 31832530771). README polished (real screenshots + demo.gif + competitor matrix + real benchmarks), CHANGELOG + semver rules — next: v1.0.0 release, gated on owner signing secrets + go-ahead
 - 2026-08-14 — PHASE 4 COMPLETE (automation-side): release.yml (tag→matrix builds→draft release→SHA256SUMS→updater manifests; signing gated on secrets); updater (opt-in, stable/beta channels, keypair in GitHub secrets); homebrew-tap + scoop-bucket repos + publish jobs (gated on TAP_GITHUB_TOKEN); winget/Flatpak/AUR templates in packaging/ — next: Phase 5 testing hardening (snapshots, fuzzing, WebDriver E2E); owner actions: Apple/Windows/GPG certs, TAP_GITHUB_TOKEN PAT, Sentry DSN
 - 2026-08-14 — Phase 3 fully green on CI (run 31772597520): fixed consent-gate test race (one file-scope `CONSENT_TEST_LOCK` shared by both test modules; was a scheduling race that passed macOS, failed Ubuntu/Windows) — next: Phase 4 distribution (release workflow, signing, package managers)
 - 2026-08-14 — PHASE 3 COMPLETE: security audit `docs/07` (physical symlink-chain escape FIXED, bomb guard 200×/1TiB/1M + rollback wired into all handlers, unrar shim 3 fixes); opt-in Sentry crash reporting (default off, S7/S6 consent, scrubbed paths, DSN via build env — owner to create project); `squash-bench` harness (seeded corpus, honest level mapping, regression gate; zstd 4.6× gzip at equal ratio proven on M3 Max; 7zz comparison pending p7zip in CI) — next: Phase 4 distribution (signing, GitHub Releases, package managers)
