@@ -13,6 +13,10 @@ repository.workspace = true
 # (docs/05 §4/§7). RAR creation is never enabled by anything.
 default = ["rar"]
 rar = ["dep:unrar-sys"]
+# Opt-in crash reporting (docs/06 §6). Enabled by the shells (GUI host +
+# CLI), not by squash-bench. Even with the feature on, a build without
+# SQUASH_SENTRY_DSN never initializes the SDK (see src/crash.rs).
+crash-reporting = ["dep:sentry"]
 
 [dependencies]
 # `log` facade only — the shells (CLI env_logger, GUI file logger) install
@@ -38,6 +42,7 @@ bzip2.workspace = true
 xz2.workspace = true
 walkdir.workspace = true
 unrar-sys = { path = "../unrar-sys", optional = true }
+sentry = { workspace = true, optional = true }
 
 [dev-dependencies]
 tempfile.workspace = true

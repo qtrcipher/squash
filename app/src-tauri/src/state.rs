@@ -10,8 +10,8 @@ use serde::Serialize;
 use squash_core::job::{Job, Operation};
 use squash_core::progress::{JobStats, ProgressEvent};
 use squash_core::store::{
-    self, HistoryOp, HistoryRecord, JobSource, JobStatus, PersistedQueue, QueuedJob, Settings,
-    SCHEMA_VERSION,
+    self, HistoryOp, HistoryRecord, JobSource, JobStatus, Language, PersistedQueue, QueuedJob,
+    Settings, SCHEMA_VERSION,
 };
 use squash_core::{Engine, JobHandle, SquashError};
 use std::collections::HashMap;
@@ -30,6 +30,14 @@ pub const OPEN_PATHS_EVENT: &str = "squash://open-paths";
 
 /// Compact history every N appends (docs/06 §5: "after every 50 appends").
 const COMPACT_EVERY_APPENDS: u32 = 50;
+
+/// The locale tag attached to crash reports (docs/06 §6).
+fn language_tag(language: Language) -> &'static str {
+    match language {
+        Language::En => "en",
+        Language::Ar => "ar",
+    }
+}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "lowercase")]
@@ -174,6 +182,10 @@ pub struct AppState {
     /// Paths handed over by the OS (docs/03 F6: argv, `RunEvent::Opened`,
     /// second-instance launch), waiting for the frontend to drain them.
     pending_open: Mutex<Vec<String>>,
+    /// Crash-reporting client guard (docs/06 §6): `Some` only while a
+    /// consented, DSN-carrying build has a live Sentry client. Kept so the
+    /// client flushes on exit; `None` means zero crash-reporting code runs.
+    crash_guard: Mutex<Option<squash_core::crash::ClientInitGuard>>,
     appends_since_compact: AtomicU32,
 }
 
@@ -212,6 +224,13 @@ impl AppState {
         if settings_outcome.value.debug_logging {
             crate::logging::enable(&dirs.log_dir);
         }
+        // Opt-in crash reporting (docs/06 §6): consent off (the default) or
+        // a DSN-less build → `None`, and no Sentry client ever exists.
+        let crash_guard = squash_core::crash::init(
+            settings_outcome.value.crash_reporting,
+            "gui",
+            Some(language_tag(settings_outcome.value.language)),
+        );
         Self {
             dirs,
             engine,
@@ -223,6 +242,7 @@ impl AppState {
             queue_writable: AtomicBool::new(queue_writable),
             pending_restore: Mutex::new(pending_restore),
             pending_open: Mutex::new(Vec::new()),
+            crash_guard: Mutex::new(crash_guard),
             appends_since_compact: AtomicU32::new(0),
         }
     }
@@ -256,8 +276,11 @@ impl AppState {
         }
         store::save_settings(&self.dirs.config_dir, &settings)?;
         let debug_on = settings.debug_logging;
+        let crash_on = settings.crash_reporting;
+        let language = settings.language;
         let mut guard = self.settings.lock().expect("settings lock");
         let toggled = guard.debug_logging != debug_on;
+        let crash_toggled = guard.crash_reporting != crash_on;
         *guard = settings;
         drop(guard);
         // The S6 verbose toggle takes effect immediately (docs/06 §3).
@@ -266,6 +289,22 @@ impl AppState {
                 crate::logging::enable(&self.dirs.log_dir);
             } else {
                 crate::logging::disable();
+            }
+        }
+        // The crash-reporting toggle takes effect immediately too (docs/06
+        // §6): on → initialize the client (DSN-less builds stay a no-op);
+        // off → unbind it, so no report can leave from this point on.
+        if crash_toggled {
+            if crash_on {
+                let mut slot = self.crash_guard.lock().expect("crash lock");
+                if slot.is_none() {
+                    *slot = squash_core::crash::init(true, "gui", Some(language_tag(language)));
+                } else {
+                    squash_core::crash::set_consent(true);
+                }
+            } else {
+                squash_core::crash::shutdown();
+                *self.crash_guard.lock().expect("crash lock") = None;
             }
         }
         Ok(())
@@ -914,6 +953,41 @@ mod tests {
         let reloaded = store::load_settings(&dirs.config_dir).unwrap().value;
         assert!(!reloaded.debug_logging);
         crate::logging::disable();
+    }
+
+    #[test]
+    fn crash_reporting_toggle_gates_the_client() {
+        let (_tmp, dirs) = test_dirs();
+        let state = AppState::new(dirs.clone());
+        // Default off (docs/06 §6): the consent gate is unset and this
+        // DSN-less dev build initialized no client — zero network possible.
+        assert!(!squash_core::crash::consent_given());
+        assert!(!squash_core::crash::available());
+
+        let (mut settings, _, _) = state.settings_snapshot();
+        settings.crash_reporting = true;
+        state.set_settings(settings).unwrap();
+        // Persisted through the settings discipline (docs/06 §2).
+        assert!(
+            store::load_settings(&dirs.config_dir)
+                .unwrap()
+                .value
+                .crash_reporting
+        );
+        // Without a baked-in DSN the gate stays off even when the user
+        // opted in — the toggle explains "not available in this build".
+        assert!(!squash_core::crash::consent_given());
+
+        let mut off = state.settings_snapshot().0;
+        off.crash_reporting = false;
+        state.set_settings(off).unwrap();
+        assert!(!squash_core::crash::consent_given());
+        assert!(
+            !store::load_settings(&dirs.config_dir)
+                .unwrap()
+                .value
+                .crash_reporting
+        );
     }
 
     #[test]

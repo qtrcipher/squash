@@ -1,7 +1,7 @@
 # Squash — Phase 0: Data Model
 
 > Status: planning gate. Inputs: `01-product-scope.md`, `03-ux-flows.md`, `05-architecture.md`. Owner: `data-modeler`.
-> Squash is local-only: no accounts, no backend, no telemetry. This doc applies Firestore-style modeling discipline (schema, validation, versioning, migration) to on-disk files. Everything here is a file the user can inspect, back up, or delete — that inspectability is part of the trust pitch (doc 02).
+> Squash is local-only: no accounts, no backend, no silent telemetry (crash reporting is opt-in only — §6). This doc applies Firestore-style modeling discipline (schema, validation, versioning, migration) to on-disk files. Everything here is a file the user can inspect, back up, or delete — that inspectability is part of the trust pitch (doc 02).
 
 ## 1. Decisions, up front
 
@@ -33,8 +33,9 @@ All timestamps RFC 3339 UTC. All paths stored as plain strings, **never canonica
 | `first_launch_done` | bool | `false` | drives S7 (doc 03 F1) |
 | `drop_zone_hint_dismissed` | bool | `false` | dismisses the one-time S1 drop-zone hint (doc 03 F1) |
 | `debug_logging` | bool | `false` | S6 verbose toggle — writes the local debug log (§3 "Debug log") |
+| `crash_reporting` | bool | `false` | S7/S6 consent toggle — opt-in Sentry crash reports (§6 "Crash reporting") |
 
-Crash-reporting consent is **not** modeled yet — doc 01 §6.3 is an open owner question; the key ships only when decided. Unknown keys are preserved on rewrite (forward-compat).
+Unknown keys are preserved on rewrite (forward-compat).
 
 ### Preset — `presets.toml`
 Built-ins (`builtin:fast|balanced|max`) are **code-defined** in `squash-core`'s preset table (doc 05 §3) and never written to disk; this file holds user presets only.
@@ -90,11 +91,20 @@ Built-ins (`builtin:fast|balanced|max`) are **code-defined** in `squash-core`'s 
 - **Stored:** user preferences, user preset definitions, job metadata (paths in/out, sizes, timestamps, error codes), unfinished queue specs. All of it lives in two user-visible directories.
 - **Never stored:** archive *contents* (S5's listing is computed live and discarded), file contents or hashes, passwords (no encryption in v1 — doc 01 §3), hostnames/usernames beyond what paths already contain, any analytics. The opt-in activation counter is a local integer the user can inspect in S6 (doc 01 §5).
 - **Caveat to state honestly:** history and queue contain absolute paths, which may reveal user names and folder structures. That is the entire privacy surface; docs must say so plainly. The debug log (`logs/squash.log`) is the same story with more detail — it records absolute paths and timings on purpose (they are what make a bug report actionable). It is written only when the user turns verbose logging on, is never redacted, and **never leaves the device**: the user reveals the folder from S6 and chooses what to attach to a GitHub issue. The S6 toggle label says exactly that.
+- **Crash reporting (opt-in Sentry; owner decision, doc 01 §6.3):** off by default, enabled only by the S7 welcome checkbox (unchecked) or the S6 toggle. When consent is off, the Sentry SDK is never initialized — no crash-reporting code runs and no network call is possible, verifiable in source (`squash-core/src/crash.rs`; the frontend SDK is a separate lazy-loaded chunk). When consent is on **and** the build has a DSN (see below), a report is sent **only when the app crashes or an unhandled error occurs**. A report contains exactly:
+  - the stack trace (crash location),
+  - the app version (`squash@<version>` release tag) and environment (`production`/`development`),
+  - OS and CPU architecture,
+  - enabled features (e.g. `rar=on/off`),
+  - the UI locale (`en`/`ar`) and which shell reported (`gui`/`cli`/`gui-frontend`).
+  Scrub rules, applied to every event before send: hostname and user are dropped, breadcrumbs are dropped entirely (nothing derived from file contents or paths), and the user's home directory in any path or message is rewritten to `~`. Reports never contain file contents, archive names beyond what a stack frame carries, environment variables, or argv beyond the command name. Turning the toggle off takes effect immediately: the consent gate drops every later event and the client is unbound. The CLI honors the same `crash_reporting` key unless `--no-config` is passed; `SQUASH_CRASH_REPORTING=1` is an explicit per-run opt-in that wins even over `--no-config` (hermetic CI runs).
+  **DSN:** the Sentry DSN is supplied at build time via `SQUASH_SENTRY_DSN` and is never committed. A build without it has the feature disabled: the consent toggles render disabled with a "not available in this build" note. Setup instructions live in `CONTRIBUTING.md` ("Crash reporting").
 - **Wipe:** Settings → "Clear history" (deletes `history.jsonl`); uninstall docs list the two directories; deleting the app-data directory returns Squash to a first-launch state. No hidden stores, no caches with user data — verifiable in source, which is the OSS trust story.
 
 ## 7. Interface-level sketch (who owns what)
 
 - **`squash-core::store`** (new module per doc 05 §3's plan): owns all serialization types, validation, version/migration chain, atomic-write + locked-append helpers, and `ProjectDirs` resolution. Pure functions: `load_settings(dir) -> Settings`, `append_history(dir, record)`, etc. No global state, no singletons — shells pass the dirs in (also enables test tempdirs).
+- **`squash-core::crash`:** opt-in crash reporting (§6 "Crash reporting"): the build-time DSN constant, the runtime consent gate, the path/message scrubbers, and the shared Sentry client options (behind the `crash-reporting` cargo feature, enabled by both shells, not by `squash-bench`).
 - **`squash-cli`:** calls `store` readers at startup (unless `--no-config`); calls `append_history` only with `--save-history`. Never writes settings, presets, or queue.
 - **`apps/gui` Tauri host (Rust side):** owns the live `Settings`/`Queue` state, calls `store` writers through its typed commands, and on launch restores `queue.json` into core `Job`s re-submitted to `Engine::submit` (doc 05 §3). The TS frontend never touches the filesystem; it renders whatever the host returns.
 - **Frontend contract:** S4's row model and CLI `--json` are both projections of the job record above — one shape, two renderers (doc 03 §4).

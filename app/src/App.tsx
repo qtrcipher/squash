@@ -15,6 +15,7 @@ import {
   shouldShowDropHint,
   shouldShowWelcome,
 } from "./state/onboarding";
+import { initCrashReporting } from "./crashReporting";
 import DropZone from "./components/DropZone";
 import QueueList from "./components/QueueList";
 import CompressSheet from "./components/CompressSheet";
@@ -39,6 +40,9 @@ export default function App() {
   const [queue, dispatch] = useReducer(queueReducer, initialQueueState);
   const [settings, setSettings] = useState<Settings | null>(null);
   const [settingsWritable, setSettingsWritable] = useState(true);
+  /** Whether this build can report crashes at all (docs/06 §6) — drives the
+   * disabled-with-explanation consent toggles on S6/S7. */
+  const [crashAvailable, setCrashAvailable] = useState(false);
   const [sheet, setSheet] = useState<SheetState>(null);
   const [pendingArchives, setPendingArchives] = useState<ArchiveRef[]>([]);
   const [announcement, setAnnouncement] = useState("");
@@ -102,8 +106,31 @@ export default function App() {
         if (shouldShowWelcome(response.settings)) setSheet({ kind: "welcome" });
         void i18n.changeLanguage(response.settings.language);
         applyTheme(response.settings.theme);
+        // Opt-in crash reporting (docs/06 §6): with consent off (default)
+        // nothing below runs and the Sentry SDK is never even loaded.
+        if (response.settings.crash_reporting) {
+          void api
+            .crashReportingConfig()
+            .then((config) => {
+              if (active) {
+                void initCrashReporting({
+                  consent: true,
+                  config,
+                  locale: response.settings.language,
+                });
+              }
+            })
+            .catch(() => undefined);
+        }
       })
       .catch(() => undefined); // defaults already in place
+    // The consent toggles on S6/S7 render disabled when the build has no DSN.
+    void api
+      .crashReportingConfig()
+      .then((config) => {
+        if (active) setCrashAvailable(config.available);
+      })
+      .catch(() => undefined);
     void api
       .listQueue()
       .then((entries) => {
@@ -236,6 +263,7 @@ export default function App() {
         <SettingsSheet
           settings={settings}
           readOnly={!settingsWritable}
+          crashReportingAvailable={crashAvailable}
           onSaved={setSettings}
           onClose={closeSheet}
         />
@@ -244,6 +272,7 @@ export default function App() {
         <WelcomeSheet
           settings={settings}
           readOnly={!settingsWritable}
+          crashReportingAvailable={crashAvailable}
           onSaved={setSettings}
           onDone={(next) => {
             setSettings(next);

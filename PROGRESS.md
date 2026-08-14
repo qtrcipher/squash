@@ -25,7 +25,7 @@
 
 > **Phase 0 gate: PASSED 2026-08-13.** Open owner decisions (do not block the gate, resolve before the phases they touch):
 > 1. RAR messaging sign-off: "extracts RAR, never creates it" (RARLAB license) — touches Phase 2/6 copy.
-> 2. Opt-in crash reporting posture — touches Phase 3 (currently unmodeled in data model).
+> 2. ~~Opt-in crash reporting posture~~ — RESOLVED 2026-08-14: opt-in Sentry, default OFF, DSN via build-time env (implemented in Phase 3).
 > 3. Donations from day one vs wait — touches Phase 6.
 > 4. User-created presets: docs 01/03 say "exactly 3 presets" but doc 06 models user presets — doc 06 proposal: GUI lists them, no preset editor in v1. Sign off or adjust.
 
@@ -46,9 +46,9 @@
 - [x] Verbose/debug logging mode for support issues (done 2026-08-14: `log` facade; CLI `-v`/`SQUASH_LOG` (stderr only); GUI `debug_logging` toggle + rolling `squash.log` + reveal-log-folder; version/OS header)
 
 ## Phase 3 — Quality & Security
-- [ ] Security audit: zip-slip / path traversal, malicious/crafted archives, decompression bombs — `security-checklist`
-- [ ] Crash reporting: opt-in, OSS-friendly (no silent telemetry) — `error-monitoring`
-- [ ] Performance: benchmark suite vs 7-Zip/WinRAR/Keka (ratio + speed), tracked over time — `performance-optimizer` agent
+- [x] Security audit: zip-slip / path traversal, malicious/crafted archives, decompression bombs — `security-checklist` (done 2026-08-14: `docs/07-security-audit.md`; fixed physical symlink-chain escape, decompression-bomb guard w/ rollback (200×/1TiB/1M caps), unrar shim hardening; 0 crit / 2 high fixed)
+- [x] Crash reporting: opt-in, OSS-friendly (no silent telemetry) — `error-monitoring` (done 2026-08-14: opt-in Sentry, default OFF, S7+S6 consent, path-scrubbing before_send, DSN via `SQUASH_SENTRY_DSN` build env — owner must create the Sentry project)
+- [x] Performance: benchmark suite vs 7-Zip/WinRAR/Keka (ratio + speed), tracked over time — `performance-optimizer` agent (done 2026-08-14: `squash-bench` — seeded corpus, competitor compare, regression gate vs `benches/baseline.json`; zstd 4.6× faster than gzip at equal ratio PROVEN; 7-Zip ratio claim pending p7zip in CI)
 
 ## Phase 4 — Distribution
 - [ ] GitHub Releases: signed binaries per OS (notarized macOS, signed Windows) — `release-automation`
@@ -70,6 +70,7 @@
 
 ## Session log
 Format, newest first, one line per session: `YYYY-MM-DD — what changed — next: <task>`
+- 2026-08-14 — PHASE 3 COMPLETE: security audit `docs/07` (physical symlink-chain escape FIXED, bomb guard 200×/1TiB/1M + rollback wired into all handlers, unrar shim 3 fixes); opt-in Sentry crash reporting (default off, S7/S6 consent, scrubbed paths, DSN via build env — owner to create project); `squash-bench` harness (seeded corpus, honest level mapping, regression gate; zstd 4.6× gzip at equal ratio proven on M3 Max; 7zz comparison pending p7zip in CI) — next: Phase 4 distribution (signing, GitHub Releases, package managers)
 - 2026-08-14 — PHASE 2 COMPLETE: OS integration (11-format fileAssociations, open-with routing cold+warm via pull-queue, single-instance, NSIS context verbs, Linux %F desktop template); onboarding (S7 welcome sheet + honest default-handler fallback + drop-zone hint); accessibility pass (focus trap/restore, roving-tabindex segmented controls, aria-live milestones, keyboard drop zone); verbose logging (`log` facade, CLI `-v`/`SQUASH_LOG` stderr-only, GUI rolling squash.log + S6 toggle) — next: Phase 3 security audit + benchmark harness + crash-reporting decision
 - 2026-08-14 — Windows CI GREEN after 4th fix: fs2 `lock_exclusive()` on append-only handle failed with os error 5 (LockFileEx needs GENERIC_READ|WRITE — added `.read(true)` in `append_history`; real product bug, Windows users would have lost all history). Full matrix now passing: fmt/clippy/test × macOS/Ubuntu/Windows + frontend (run 31750104659) — next: OS integration, onboarding S7, accessibility pass, debug logging
 - 2026-08-14 — Phase 2 core item COMPLETE: single-file codecs gz/xz/zst (create+extract, streaming, preset rows 1/6/9 + 3/7/19, compound-extension detection, F4 one-output-per-input batch); Windows unrar build fixed across 3 CI rounds (verbatim `\\?\` paths → cl.exe C1083; isnt.cpp+motw.cpp+shell32; advapi32) — next: OS integration, onboarding S7, accessibility pass, debug logging

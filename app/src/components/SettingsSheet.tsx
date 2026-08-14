@@ -1,8 +1,10 @@
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { api, type Settings } from "../api";
+import { initCrashReporting, shutdownCrashReporting } from "../crashReporting";
 import { applyTheme } from "../format";
 import i18n from "../i18n";
+import CrashReportingField from "./CrashReportingField";
 import Sheet from "./Sheet";
 
 /**
@@ -14,11 +16,13 @@ import Sheet from "./Sheet";
 export default function SettingsSheet({
   settings,
   readOnly,
+  crashReportingAvailable,
   onSaved,
   onClose,
 }: {
   settings: Settings;
   readOnly: boolean;
+  crashReportingAvailable: boolean;
   onSaved: (settings: Settings) => void;
   onClose: () => void;
 }) {
@@ -33,6 +37,16 @@ export default function SettingsSheet({
     // Live side effects first — the UI responds even if the persist fails.
     if (patch.language) void i18n.changeLanguage(patch.language);
     if (patch.theme) applyTheme(patch.theme);
+    // Crash reporting (docs/06 §6): on → init the SDK now (the host does the
+    // same for the Rust side); off → close it so nothing more can be sent.
+    if (patch.crash_reporting === true) {
+      void api
+        .crashReportingConfig()
+        .then((config) => initCrashReporting({ consent: true, config, locale: next.language }))
+        .catch(() => undefined);
+    } else if (patch.crash_reporting === false) {
+      void shutdownCrashReporting();
+    }
     void persist(next);
   };
 
@@ -143,6 +157,13 @@ export default function SettingsSheet({
         </div>
         <p className="sheet-note">{t("settings.verboseLoggingNote")}</p>
       </div>
+
+      <CrashReportingField
+        id="settings-crash-reporting"
+        checked={draft.crash_reporting}
+        available={crashReportingAvailable}
+        onChange={(crash_reporting) => update({ crash_reporting })}
+      />
     </Sheet>
   );
 }

@@ -1,15 +1,18 @@
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { api, type Settings } from "../api";
+import { initCrashReporting, shutdownCrashReporting } from "../crashReporting";
 import { applyTheme } from "../format";
 import i18n from "../i18n";
 import { completeFirstLaunch } from "../state/onboarding";
+import CrashReportingField from "./CrashReportingField";
 import Sheet from "./Sheet";
 
 /**
  * S7 first-launch sheet (docs/03 §2 S7, F1): pick language + theme, optional
- * "make default handler", Continue. Success-only, skippable, never shown
- * again — closing it any way (Continue, Esc, scrim) marks first launch done.
+ * "make default handler", crash-reporting consent (unchecked by default,
+ * docs/06 §6), Continue. Success-only, skippable, never shown again —
+ * closing it any way (Continue, Esc, scrim) marks first launch done.
  *
  * The default-handler step is honest (docs/03 F6): the OS owns file
  * associations, so instead of a fake checkbox the sheet offers to open the
@@ -19,11 +22,13 @@ import Sheet from "./Sheet";
 export default function WelcomeSheet({
   settings,
   readOnly,
+  crashReportingAvailable,
   onSaved,
   onDone,
 }: {
   settings: Settings;
   readOnly: boolean;
+  crashReportingAvailable: boolean;
   onSaved: (settings: Settings) => void;
   onDone: (settings: Settings) => void;
 }) {
@@ -39,6 +44,15 @@ export default function WelcomeSheet({
     // Live side effects first — the UI responds even if the persist fails.
     if (patch.language) void i18n.changeLanguage(patch.language);
     if (patch.theme) applyTheme(patch.theme);
+    // Crash reporting (docs/06 §6): on → init the SDK now; off → close it.
+    if (patch.crash_reporting === true) {
+      void api
+        .crashReportingConfig()
+        .then((config) => initCrashReporting({ consent: true, config, locale: next.language }))
+        .catch(() => undefined);
+    } else if (patch.crash_reporting === false) {
+      void shutdownCrashReporting();
+    }
     void persist(next);
   };
 
@@ -126,6 +140,13 @@ export default function WelcomeSheet({
         </div>
         {showManualSteps && <p className="sheet-note">{t("onboarding.manualSteps")}</p>}
       </div>
+
+      <CrashReportingField
+        id="onboarding-crash-reporting"
+        checked={draft.crash_reporting}
+        available={crashReportingAvailable}
+        onChange={(crash_reporting) => update({ crash_reporting })}
+      />
 
       <div className="sheet-actions">
         <button type="button" className="button primary cta" onClick={finish}>

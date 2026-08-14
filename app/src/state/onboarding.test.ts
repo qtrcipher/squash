@@ -20,6 +20,7 @@ function settings(overrides: Partial<Settings> = {}): Settings {
     first_launch_done: false,
     drop_zone_hint_dismissed: false,
     debug_logging: false,
+    crash_reporting: false,
     ...overrides,
   };
 }

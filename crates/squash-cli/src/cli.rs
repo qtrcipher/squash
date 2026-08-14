@@ -20,6 +20,12 @@ pub struct Cli {
     #[arg(short, long, global = true)]
     pub verbose: bool,
 
+    /// Run hermetically: do not read settings.toml (docs/06 §5). Crash
+    /// reporting stays off for this run unless `SQUASH_CRASH_REPORTING=1`
+    /// is set as an explicit per-run opt-in (docs/06 §6).
+    #[arg(long, global = true)]
+    pub no_config: bool,
+
     #[command(subcommand)]
     pub command: Commands,
 }
@@ -140,6 +146,17 @@ mod tests {
         assert!(cli.verbose);
         let cli = Cli::try_parse_from(["squash", "x", "a.zip"]).unwrap();
         assert!(!cli.verbose);
+    }
+
+    #[test]
+    fn no_config_flag_is_global_and_defaults_off() {
+        let cli = Cli::try_parse_from(["squash", "--no-config", "c", "src/"]).unwrap();
+        assert!(cli.no_config);
+        // Global args also parse after the subcommand.
+        let cli = Cli::try_parse_from(["squash", "x", "a.zip", "--no-config"]).unwrap();
+        assert!(cli.no_config);
+        let cli = Cli::try_parse_from(["squash", "x", "a.zip"]).unwrap();
+        assert!(!cli.no_config);
     }
 
     #[test]

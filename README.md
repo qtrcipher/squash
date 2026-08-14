@@ -9,7 +9,7 @@ Squash aims to beat the common compressors where they actually hurt: dated UIs, 
 - **One app, every desktop OS** — same UI, same CLI, same behavior on macOS, Windows, and Linux.
 - **Modern formats, first-class** — zstd/brotli alongside zip, 7z, tar.gz, and friends.
 - **GUI for humans, CLI for scripts** — drag-and-drop and batch queues in the app; deterministic exit codes and `--json` in the terminal.
-- **Trustworthy by construction** — open source, signed releases, zip-slip protection, no ads, no nagware, no silent telemetry.
+- **Trustworthy by construction** — open source, signed releases, zip-slip protection, no ads, no nagware, no silent telemetry (crash reporting is opt-in only — off unless you turn it on; see `docs/06-data-model.md` §6).
 
 ## Project layout
 

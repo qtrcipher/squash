@@ -75,6 +75,10 @@ pub struct Settings {
     /// log"). Off by default; the GUI's S6 toggle flips it. Logs never leave
     /// the device — the user chooses to attach them to an issue.
     pub debug_logging: bool,
+    /// Opt-in crash reporting (docs/06 §6). Default off; the S7 consent
+    /// checkbox and the S6 toggle flip it. No consent → the Sentry client is
+    /// never initialized and no crash-reporting network call is possible.
+    pub crash_reporting: bool,
 }
 
 impl Default for Settings {
@@ -93,6 +97,7 @@ impl Default for Settings {
             first_launch_done: false,
             drop_zone_hint_dismissed: false,
             debug_logging: false,
+            crash_reporting: false,
         }
     }
 }
@@ -136,6 +141,7 @@ mod tests {
         assert!(!s.first_launch_done);
         assert!(!s.drop_zone_hint_dismissed);
         assert!(!s.debug_logging);
+        assert!(!s.crash_reporting);
         s.validate().unwrap();
     }
 
@@ -185,6 +191,7 @@ struct RawSettings {
     first_launch_done: Option<bool>,
     drop_zone_hint_dismissed: Option<bool>,
     debug_logging: Option<bool>,
+    crash_reporting: Option<bool>,
 }
 
 #[derive(Debug, Default, Deserialize)]
@@ -367,6 +374,7 @@ fn coerce(raw: RawSettings) -> (Settings, Vec<String>) {
         first_launch_done: raw.first_launch_done.unwrap_or(false),
         drop_zone_hint_dismissed: raw.drop_zone_hint_dismissed.unwrap_or(false),
         debug_logging: raw.debug_logging.unwrap_or(false),
+        crash_reporting: raw.crash_reporting.unwrap_or(false),
     };
     (settings, warnings)
 }
@@ -446,6 +454,7 @@ fn overlay(doc: &mut toml_edit::DocumentMut, s: &Settings) {
     doc["first_launch_done"] = value(s.first_launch_done);
     doc["drop_zone_hint_dismissed"] = value(s.drop_zone_hint_dismissed);
     doc["debug_logging"] = value(s.debug_logging);
+    doc["crash_reporting"] = value(s.crash_reporting);
 }
 
 #[cfg(test)]
@@ -484,6 +493,7 @@ mod io_tests {
             first_launch_done: true,
             drop_zone_hint_dismissed: true,
             debug_logging: true,
+            crash_reporting: true,
             ..Settings::default()
         };
         let outcome = save_and_reload(tmp.path(), &s);

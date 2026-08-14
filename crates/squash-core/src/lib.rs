@@ -6,6 +6,7 @@
 //! [`format::FormatHandler`]; every extraction path passes through the
 //! [`safety`] zip-slip layer.
 
+pub mod crash;
 pub mod engine;
 pub mod error;
 pub mod format;

@@ -149,6 +149,42 @@ pub fn set_settings(state: State<'_, SharedState>, settings: Settings) -> Result
     state.set_settings(settings).map_err(|e| e.to_string())
 }
 
+/// What the S6/S7 crash-reporting consent UI needs (docs/06 §6): whether
+/// this build can report at all (a DSN is baked in at build time), plus the
+/// release/environment/features tags the frontend sends when — and only
+/// when — the user has opted in. The DSN is not a secret: it ships inside
+/// the released binary by design.
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CrashReportingConfig {
+    pub available: bool,
+    pub dsn: Option<String>,
+    pub release: String,
+    pub environment: String,
+    /// Enabled feature set, e.g. `rar=on` — part of the documented report.
+    pub features: String,
+}
+
+#[tauri::command]
+pub fn crash_reporting_config() -> CrashReportingConfig {
+    CrashReportingConfig {
+        available: squash_core::crash::available(),
+        dsn: squash_core::crash::DSN
+            .filter(|d| !d.trim().is_empty())
+            .map(str::to_string),
+        release: squash_core::crash::release_tag(),
+        environment: squash_core::crash::environment().to_string(),
+        features: format!(
+            "rar={}",
+            if squash_core::FEATURE_RAR {
+                "on"
+            } else {
+                "off"
+            }
+        ),
+    }
+}
+
 /// One dropped path, classified (docs/03 F5): archives route to S3, the
 /// rest to S2.
 #[derive(Debug, Clone, Serialize)]

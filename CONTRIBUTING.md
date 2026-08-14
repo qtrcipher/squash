@@ -16,6 +16,22 @@ cargo test             # all Rust tests
 cd app && npm install && npm run build   # GUI frontend
 ```
 
+## Crash reporting (Sentry)
+
+Crash reporting is **opt-in** (docs/06 §6) and needs a Sentry DSN at build time. Self-built and CI builds without a DSN have the feature disabled — the consent toggles render as "not available in this build".
+
+To produce a build with crash reporting available:
+
+1. Create a Sentry project (sentry.io → New Project → platform "Rust"; one project serves the GUI host, frontend, and CLI).
+2. Copy its DSN (Project Settings → Client Keys) — a DSN is public by design (it ships inside the released binary), but **never commit it**.
+3. Build with the env var set (release CI should inject it from secrets):
+
+   ```sh
+   SQUASH_SENTRY_DSN="https://<key>@o<org>.ingest.sentry.io/<project>" cargo build --release
+   ```
+
+`option_env!` tracks the variable, so changing or unsetting it re-triggers compilation of `squash-core` — no manual `cargo clean` needed.
+
 ## Ground rules
 
 - **Conventional commits** (`feat:`, `fix:`, `chore:`, `docs:`, `test:`, `refactor:`); branches `feature/*`, `fix/*`, `chore/*`.

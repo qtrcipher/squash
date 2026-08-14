@@ -90,5 +90,5 @@ North-star: weekly active machines (opt-in update-check ping count) — target 5
 
 1. **GUI toolkit** — Tauri, Electron, Qt, or native-per-OS? This is the biggest effort/risk fork in the roadmap; needs architecture input (feeds `docs/05-architecture.md`), but the *product* constraint is fixed: must feel native, ship small binaries, and support RTL well. Owner call after architect's recommendation.
 2. **RAR compression** — RARLAB's license forbids creating rar archives in third-party tools. Confirmed out of scope forever; needs owner sign-off on messaging ("extracts rar, never creates it").
-3. **Crash reporting** — opt-in Sentry-style reporting vs none at all? OSS community cares; lean opt-in, but it's the owner's trust posture to set.
+3. **Crash reporting** — opt-in Sentry-style reporting vs none at all? OSS community cares; lean opt-in, but it's the owner's trust posture to set. **RESOLVED (owner): opt-in Sentry.** Default off; consent via the S7 checkbox (unchecked) and the S6 toggle; DSN via build-time `SQUASH_SENTRY_DSN`, never committed; builds without it show the toggle disabled. What's sent and the scrub rules are documented in docs/06 §6 "Crash reporting".
 4. **Donations/sustainability** — GitHub Sponsors/Open Collective from day one, or stay clean until traction exists? (No paywall either way; house rule stands.)

@@ -15,8 +15,8 @@ One main window; everything else is a sheet, panel, or dialog attached to it. No
 | S3 | **Extract sheet** | Choose destination and single-folder-vs-loose-files handling |
 | S4 | **Job queue** | Live list of queued/running/done/failed jobs with progress, ETA, sizes |
 | S5 | **Archive contents list** | Read-only flat summary of an archive's top level (count, names, sizes) shown pre-extraction. **Not** a browsable folder tree — that is OUT per doc 01 |
-| S6 | **Settings** | Theme, language, default preset/format, default destinations, opt-in update check, opt-in activation counter inspection |
-| S7 | **First-launch sheet** | One-time: pick language + theme, set as default handler (optional) |
+| S6 | **Settings** | Theme, language, default preset/format, default destinations, opt-in update check, opt-in activation counter inspection, opt-in crash reporting |
+| S7 | **First-launch sheet** | One-time: pick language + theme, set as default handler (optional), crash-reporting consent (checkbox, **unchecked** by default — docs/06 §6) |
 | D1–D4 | **Dialogs** | Overwrite-conflict (D1), password-protected archive (D2), update-available (D3), delete-after-extract confirmation is NOT offered in v1 — no destructive options |
 
 S1 layout intent:
@@ -72,7 +72,7 @@ Static sheets (S2, S3, S6, S7, D1–D4) have no loading/empty states; their erro
 
 ## 3. Core user flows
 
-**F1 — First launch.** Open app → S7 (language, theme, "make default handler" checkbox) → Continue → S1 empty state. Decision: no account, no telemetry prompt beyond the single opt-in activation counter mentioned in Settings, no tutorial — the drop zone explains itself.
+**F1 — First launch.** Open app → S7 (language, theme, "make default handler" link, crash-reporting consent checkbox — unchecked, plain-language text listing exactly what a report contains) → Continue → S1 empty state. Decision: no account, no telemetry prompt beyond the single opt-in activation counter mentioned in Settings and the opt-in crash-reporting consent (docs/06 §6), no tutorial — the drop zone explains itself.
 
 **F2 — Compress.** Drop files/folders on S1 (or Choose Files / OS context menu) → S2 pre-filled (output name = first item's name, location = source folder, format/preset = Settings defaults) → Compress → S4 running job → success line with Reveal. Cancel anytime; partial output is deleted automatically.
 

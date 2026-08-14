@@ -87,6 +87,7 @@ pub fn run() {
             commands::list_queue,
             commands::get_settings,
             commands::set_settings,
+            commands::crash_reporting_config,
             commands::classify_paths,
             commands::path_exists,
             commands::reveal_path,

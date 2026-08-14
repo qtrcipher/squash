@@ -8,6 +8,9 @@
  */
 import { invoke } from "@tauri-apps/api/core";
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
+import type { CrashReportingConfig } from "./crashReporting";
+
+export type { CrashReportingConfig };
 
 export type Operation = "compress" | "extract";
 export type JobStatus = "queued" | "running" | "finished" | "failed" | "cancelled";
@@ -57,6 +60,8 @@ export interface Settings {
   drop_zone_hint_dismissed: boolean;
   /** S6 verbose toggle — writes the local debug log (docs/06 §3). */
   debug_logging: boolean;
+  /** Opt-in crash reporting (docs/06 §6). Default off — S7/S6 consent only. */
+  crash_reporting: boolean;
 }
 
 export interface SettingsResponse {
@@ -114,6 +119,14 @@ export const api = {
 
   setSettings: (settings: Settings): Promise<void> =>
     invoke<void>("set_settings", { settings }),
+
+  /**
+   * Crash-reporting build config for the S6/S7 consent UI (docs/06 §6):
+   * whether this build ships a DSN, plus the tags sent when the user has
+   * opted in. Reading it is local-only — no network happens here.
+   */
+  crashReportingConfig: (): Promise<CrashReportingConfig> =>
+    invoke<CrashReportingConfig>("crash_reporting_config"),
 
   classifyPaths: (paths: string[]): Promise<ClassifiedPaths> =>
     invoke<ClassifiedPaths>("classify_paths", { paths }),
