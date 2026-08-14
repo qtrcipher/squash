@@ -4,7 +4,7 @@ Package-manager distribution for Squash. **Nothing here is live until the first 
 
 | Directory | Channel | Status |
 |---|---|---|
-| `homebrew/` | [qtrcipher/homebrew-tap](https://github.com/qtrcipher/homebrew-tap): `squash.rb` CLI formula template + `squash-cask.rb` GUI cask template + `publish.sh` | Automated: `publish-homebrew` job in `release.yml` (needs `TAP_GITHUB_TOKEN` secret) |
+| `homebrew/` | [qtrcipher/homebrew-tap](https://github.com/qtrcipher/homebrew-tap): `squash.rb` CLI formula template (Linux only — macOS was dropped as a target) + `publish.sh` | Automated: `publish-homebrew` job in `release.yml` (needs `TAP_GITHUB_TOKEN` secret) |
 | `scoop/` | [qtrcipher/scoop-bucket](https://github.com/qtrcipher/scoop-bucket): `squash.json` manifest template + `publish.sh` | Automated: `publish-scoop` job in `release.yml` (same secret) |
 | `winget/` | microsoft/winget-pkgs (third-party repo, PR) | Templates for v0.1.0 with placeholder hashes; regenerate with `wingetcreate` at first release |
 | `flatpak/` | Flathub | Starter manifest `dev.squash.app.yml`; needs generated offline sources + metainfo, then a `new-pr` PR |

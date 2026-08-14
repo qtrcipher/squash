@@ -3,9 +3,9 @@
 [![CI](https://github.com/qtrcipher/squash/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/qtrcipher/squash/actions/workflows/ci.yml)
 [![License: MIT / Apache-2.0](https://img.shields.io/badge/license-MIT%20%2F%20Apache--2.0-blue)](LICENSE-MIT)
 
-**Open-source file compressor for macOS, Windows, and Linux — desktop GUI + CLI on one shared core.**
+**Open-source file compressor for Windows and Linux — desktop GUI + CLI on one shared core.**
 
-Squash is a free, open-source file archiver built as a modern 7-Zip alternative: one compression core behind both a native-feeling GUI and a scriptable CLI, identical on all three desktop OSes. It opens RAR, 7z, zip, tar.gz, tar.zst and more out of the box — so "open RAR on Mac" or "create tar.gz on Windows" stops being a research project — and it compresses with modern codecs like zstd alongside the classic formats. No ads, no trial nag, no silent telemetry.
+Squash is a free, open-source file archiver built as a modern 7-Zip alternative: one compression core behind both a native-feeling GUI and a scriptable CLI, identical on Windows and Linux. It opens RAR, 7z, zip, tar.gz, tar.zst and more out of the box — so opening a RAR someone sent you or creating a tar.gz on Windows stops being a research project — and it compresses with modern codecs like zstd alongside the classic formats. No ads, no trial nag, no silent telemetry.
 
 > Status: pre-release. The code is feature-complete for v1 and in final testing; **no public release exists yet** — see [Install](#install).
 
@@ -24,7 +24,7 @@ Squash is a free, open-source file archiver built as a modern 7-Zip alternative:
 
 Squash aims to beat the common compressors where they actually hurt: dated UIs, nagware, platform lock-in, and weak automation — not by chasing another fraction of compression ratio.
 
-- **One app, every desktop OS** — same UI, same CLI, same behavior on macOS, Windows, and Linux.
+- **One app, every supported desktop OS** — same UI, same CLI, same behavior on Windows and Linux.
 - **Modern formats, first-class** — zstd (`.tar.zst` / `.zst`) alongside zip, 7z, and tar.gz; brotli is on the roadmap.
 - **GUI for humans, CLI for scripts** — drag-and-drop and batch queues in the app; deterministic exit codes and `--json` in the terminal.
 - **Trustworthy by construction** — open source, zip-slip and decompression-bomb protection on by default, no ads, no nagware, no silent telemetry (crash reporting is opt-in only — off unless you turn it on; see `docs/06-data-model.md` §6).
@@ -37,7 +37,7 @@ Competitor facts are sourced in [docs/02-market-check.md](docs/02-market-check.m
 | | **Squash** | 7-Zip | WinRAR | Keka | PeaZip |
 |---|---|---|---|---|---|
 | Open source | ✅ MIT/Apache-2.0 | ✅ LGPL | ❌ trialware | ✅ (paid on App Store) | ✅ LGPLv3 |
-| Same GUI on macOS / Windows / Linux | ✅ | ❌ Windows-only GUI | ❌ GUI is Windows-only | ❌ macOS-only | ✅ (cluttered UI) |
+| Same GUI on Windows + Linux | ✅ | ❌ Windows-only GUI | ❌ GUI is Windows-only | ❌ macOS-only | ✅ (cluttered UI) |
 | CLI for scripting | ✅ `--json`, stable exit codes | ✅ | ✅ (Linux/macOS CLI) | ❌ | ✅ |
 | zstd support | ✅ tar.zst / .zst | ✅ since 24.01 | ❌ | ✅ | ✅ |
 | RAR extraction | ✅ (never creates RAR) | ✅ | ✅ | ✅ | ✅ |
@@ -71,8 +71,7 @@ At roughly the same output size as `gzip -6`, Squash's zstd fast preset ran **4.
 
 **No releases yet** — the commands below go live with the first release (`v0.1.0`). Until then, build from source (see [CONTRIBUTING.md](CONTRIBUTING.md)).
 
-- **macOS / Linux (CLI)** — `brew install qtrcipher/tap/squash`
-- **macOS (GUI)** — `brew install --cask qtrcipher/tap/squash`
+- **Linux (CLI)** — `brew install qtrcipher/tap/squash`
 - **Windows (GUI)** — `winget install qtrcipher.Squash`
 - **Windows (CLI)** — `scoop bucket add squash https://github.com/qtrcipher/scoop-bucket && scoop install squash`
 - **Linux (GUI)** — download the `.deb` / `.rpm` / `.AppImage` from [Releases](https://github.com/qtrcipher/squash/releases) and install with your package manager (`sudo dpkg -i squash_*.deb`, `sudo dnf install squash-*.rpm`); Flatpak via Flathub is planned.

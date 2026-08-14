@@ -1,5 +1,12 @@
 # Squash — Phase 0: Product Scope
 
+> **Amendment 2026-08-14 — macOS target dropped.** Supported platforms are now
+> **Windows + Linux only** (owner decision: Apple signing embeds a personal
+> legal name in binaries — a privacy concern; macOS may return later via an
+> organization account). This document is a historical planning record; any
+> mention of macOS as a supported/shipped platform below is superseded. The
+> codebase stays portable — only builds, packaging, and platform claims changed.
+
 > Status: planning gate. No implementation code until Phase 0 docs are complete.
 > Owner of this document: `product-strategist`. Scope changes require re-baselining here first.
 

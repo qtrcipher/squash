@@ -3,7 +3,13 @@
 These override/extend the global `~/.claude/CLAUDE.md` for this repo.
 
 ## What this project is
-- **Squash**: open-source, cross-platform (macOS / Windows / Linux) file compressor.
+- **Squash**: open-source, cross-platform (**Windows / Linux**) file compressor.
+  macOS was dropped as a target on 2026-08-14 (owner decision): Apple signing
+  embeds the owner's personal legal name in binaries — a privacy concern.
+  Reversible later via an organization Apple account. macOS-specific code
+  (`#[cfg(target_os = "macos")]`, `RunEvent::Opened`, etc.) stays in the tree
+  so the codebase remains portable; only builds, CI legs, packaging, and
+  platform claims were removed.
 - Desktop GUI (Tauri v2) + CLI sharing a Rust core (`squash-core`). See `docs/05-architecture.md`.
 - Distributed via GitHub Releases + package managers (Homebrew, winget, etc.) — see `PROGRESS.md`.
 

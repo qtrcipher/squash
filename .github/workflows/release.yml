@@ -8,11 +8,6 @@
 #
 # Unsigned-first (docs/05 §5): every signing step is gated on secret presence
 # and no-ops cleanly when its secrets are absent.
-#   macOS:    APPLE_CERTIFICATE + APPLE_CERTIFICATE_PASSWORD enable codesigning
-#             (APPLE_SIGNING_IDENTITY optional override); APPLE_ID +
-#             APPLE_PASSWORD + APPLE_TEAM_ID enable notarization. Both run
-#             inside tauri-action / tauri-bundler; empty env vars mean an
-#             ad-hoc-signed, unnotarized build.
 #   Windows:  WINDOWS_CERTIFICATE (base64 .pfx) + WINDOWS_CERTIFICATE_PASSWORD
 #             enable a signtool pass on the .msi/.exe installers (an OSS
 #             SignPath.io cert can be substituted here later).
@@ -31,9 +26,9 @@
 #             publish-homebrew / publish-scoop jobs (stable tags only, after
 #             finalize). See CONTRIBUTING.md "Package-manager distribution".
 #
-# macOS ships per-arch (aarch64 + x86_64, the Intel leg cross-built on the
-# arm64 runner per the current tauri-action convention) instead of a lipo
-# universal2 build — GitHub is retiring the Intel macos-13 runners.
+# Supported targets: Windows (x86_64) + Linux (x86_64). macOS was dropped
+# 2026-08-14 (owner decision: Apple signing embeds a personal legal name in
+# binaries; may return via an organization account).
 
 name: Release
 
@@ -138,14 +133,6 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - name: macOS (Apple Silicon)
-            os: macos-latest
-            target: aarch64-apple-darwin
-            cli_name: squash-macos-aarch64
-          - name: macOS (Intel)
-            os: macos-latest
-            target: x86_64-apple-darwin
-            cli_name: squash-macos-x86_64
           - name: Linux (x86_64)
             os: ubuntu-latest
             target: ''
@@ -199,31 +186,21 @@ jobs:
         run: npm ci
 
       - name: Export signing secrets (only when present)
-        # tauri-action/the bundler treat a SET-but-empty signing var as "sign"
-        # (an empty APPLE_CERTIFICATE made the rehearsal build fail in
-        # `security import`). Secrets map to empty strings when absent, so
-        # re-export through $GITHUB_ENV only when non-empty.
+        # tauri-action/the bundler treat a SET-but-empty signing var as "sign".
+        # Secrets map to empty strings when absent, so re-export through
+        # $GITHUB_ENV only when non-empty.
         env:
-          APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
-          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
-          APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
-          APPLE_ID: ${{ secrets.APPLE_ID }}
-          APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
-          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         shell: bash
         run: |
           set -euo pipefail
-          for var in APPLE_CERTIFICATE APPLE_CERTIFICATE_PASSWORD APPLE_SIGNING_IDENTITY APPLE_ID APPLE_PASSWORD APPLE_TEAM_ID TAURI_SIGNING_PRIVATE_KEY TAURI_SIGNING_PRIVATE_KEY_PASSWORD; do
+          for var in TAURI_SIGNING_PRIVATE_KEY TAURI_SIGNING_PRIVATE_KEY_PASSWORD; do
             value="${!var}"
             if [ -n "$value" ]; then
               echo "$var=$value" >> "$GITHUB_ENV"
             fi
           done
-          if [ -z "${APPLE_CERTIFICATE}" ]; then
-            echo "No Apple certificate — unsigned (ad-hoc) macOS build."
-          fi
           if [ -z "${TAURI_SIGNING_PRIVATE_KEY}" ]; then
             echo "No updater key — updater artifacts will be unsigned."
           fi
@@ -233,8 +210,8 @@ jobs:
         uses: tauri-apps/tauri-action@v1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          # APPLE_* / TAURI_SIGNING_* arrive via $GITHUB_ENV from the step
-          # above — present only when the corresponding secret exists.
+          # TAURI_SIGNING_* arrive via $GITHUB_ENV from the step above —
+          # present only when the corresponding secret exists.
         with:
           projectPath: app
           releaseId: ${{ needs.prepare.outputs.release_id }}
@@ -360,7 +337,7 @@ jobs:
         working-directory: assets
         run: |
           set -euo pipefail
-          for f in *.app.tar.gz *.AppImage *-setup.exe; do
+          for f in *.AppImage *-setup.exe; do
             [ -e "$f" ] || continue
             npx --yes @tauri-apps/cli signer sign "$f"
           done
@@ -386,8 +363,6 @@ jobs:
 
           platforms = {}
           for key, patterns in {
-              "darwin-aarch64": ("*aarch64.app.tar.gz",),
-              "darwin-x86_64": ("*x64.app.tar.gz", "*x86_64.app.tar.gz"),
               "linux-x86_64": ("*.AppImage",),
               "windows-x86_64": ("*-setup.exe",),
           }.items():
@@ -483,7 +458,7 @@ jobs:
           mkdir -p assets
           gh release download "$TAG" -p SHA256SUMS.txt --dir assets --clobber
 
-      - name: Render and push formula + cask
+      - name: Render and push formula
         if: env.TAP_GITHUB_TOKEN != ''
         run: packaging/homebrew/publish.sh "$TAG" assets/SHA256SUMS.txt
 

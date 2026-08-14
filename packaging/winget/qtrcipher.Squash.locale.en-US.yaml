@@ -13,7 +13,7 @@ PackageUrl: https://github.com/qtrcipher/squash
 License: MIT OR Apache-2.0
 LicenseUrl: https://github.com/qtrcipher/squash/blob/main/LICENSE-MIT
 Copyright: Copyright (c) Squash contributors
-ShortDescription: Open-source file compressor for macOS, Windows, and Linux — desktop GUI + CLI on one shared core.
+ShortDescription: Open-source file compressor for Windows and Linux — desktop GUI + CLI on one shared core.
 Moniker: squash
 Tags:
   - archive

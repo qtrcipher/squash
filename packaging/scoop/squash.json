@@ -1,7 +1,7 @@
 {
   "//": "Template in the squash repo at packaging/scoop/squash.json — rendered and pushed here by the Squash release workflow. Do not edit by hand.",
   "version": "@VERSION@",
-  "description": "Open-source file compressor — CLI for macOS, Windows, and Linux",
+  "description": "Open-source file compressor — CLI for Windows and Linux",
   "homepage": "https://github.com/qtrcipher/squash",
   "license": "MIT OR Apache-2.0",
   "architecture": {

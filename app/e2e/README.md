@@ -82,5 +82,5 @@ fixture dirs under `$TMPDIR` for post-mortem (the path is printed).
 
 ## CI
 
-The `e2e` job in `.github/workflows/ci.yml` runs this on macOS, Ubuntu
-(headless via Xvfb), and Windows, honoring the `[ci skip]` convention.
+The `e2e` job in `.github/workflows/ci.yml` runs this on Ubuntu
+(headless via Xvfb) and Windows, honoring the `[ci skip]` convention.

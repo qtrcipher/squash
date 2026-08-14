@@ -6,7 +6,7 @@
 pkgname=squash
 pkgver=0.1.0 # TEMPLATE — first release version
 pkgrel=1
-pkgdesc="Open-source file compressor for macOS, Windows, and Linux — desktop GUI + CLI"
+pkgdesc="Open-source file compressor for Windows and Linux — desktop GUI + CLI"
 arch=('x86_64' 'aarch64')
 url="https://github.com/qtrcipher/squash"
 license=('MIT' 'Apache-2.0')

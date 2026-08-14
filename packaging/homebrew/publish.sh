@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
-# Render the Homebrew formula + cask templates with the real version and
-# SHA256 sums from a release, then push them to qtrcipher/homebrew-tap.
+# Render the Homebrew formula template (Linux-only CLI — macOS was dropped as
+# a target on 2026-08-14) with the real version and SHA256 sums from a
+# release, then push it to qtrcipher/homebrew-tap.
 #
 # Usage: publish.sh <tag> <sha256sums-file>
 #   <tag>             release tag, e.g. v0.2.0
@@ -30,19 +31,11 @@ sum_for() {
   echo "$sum"
 }
 
-SHA256_MACOS_AARCH64="$(sum_for "squash-macos-aarch64.tar.gz")"
-SHA256_MACOS_X86_64="$(sum_for "squash-macos-x86_64.tar.gz")"
 SHA256_LINUX_X86_64="$(sum_for "squash-linux-x86_64.tar.gz")"
-SHA256_DMG_AARCH64="$(sum_for "Squash_${VERSION}_aarch64.dmg")"
-SHA256_DMG_X64="$(sum_for "Squash_${VERSION}_x64.dmg")"
 
 render() {
   sed -e "s/@VERSION@/$VERSION/g" \
-      -e "s/@SHA256_MACOS_AARCH64@/$SHA256_MACOS_AARCH64/g" \
-      -e "s/@SHA256_MACOS_X86_64@/$SHA256_MACOS_X86_64/g" \
       -e "s/@SHA256_LINUX_X86_64@/$SHA256_LINUX_X86_64/g" \
-      -e "s/@SHA256_DMG_AARCH64@/$SHA256_DMG_AARCH64/g" \
-      -e "s/@SHA256_DMG_X64@/$SHA256_DMG_X64/g" \
       "$1"
 }
 
@@ -50,10 +43,9 @@ WORK="$(mktemp -d)"
 trap 'rm -rf "$WORK"' EXIT
 
 git clone --depth 1 "https://x-access-token:${TAP_GITHUB_TOKEN}@github.com/${TAP_REPO}.git" "$WORK/tap"
-mkdir -p "$WORK/tap/Formula" "$WORK/tap/Casks"
+mkdir -p "$WORK/tap/Formula"
 
 render "$HERE/squash.rb" > "$WORK/tap/Formula/squash.rb"
-render "$HERE/squash-cask.rb" > "$WORK/tap/Casks/squash.rb"
 
 cd "$WORK/tap"
 git config user.name "github-actions[bot]"
@@ -64,7 +56,7 @@ if [ -z "$(git status --porcelain)" ]; then
   exit 0
 fi
 
-git add Formula/squash.rb Casks/squash.rb
+git add Formula/squash.rb
 git commit -m "squash ${TAG}"
 git push origin HEAD
-echo "Published formula + cask for $TAG to ${TAP_REPO}."
+echo "Published formula for $TAG to ${TAP_REPO}."

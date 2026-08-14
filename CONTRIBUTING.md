@@ -43,7 +43,7 @@ Squash follows [semver](https://semver.org) and keeps a [Keep a Changelog](https
 
 ## Releasing
 
-Releases are built by `.github/workflows/release.yml`. Everything is driven by the version tag.
+Releases are built by `.github/workflows/release.yml`. Everything is driven by the version tag. Supported release targets: **Windows (x86_64) and Linux (x86_64)** — macOS was dropped on 2026-08-14 (owner decision: Apple signing embeds a personal legal name in binaries; it may return later via an organization account), so there are no macOS legs, Apple secrets, or cask/dmg packaging.
 
 ### Cutting a release
 
@@ -70,7 +70,7 @@ Templates and automation live under [`packaging/`](packaging/) (see its README).
 
 **Automated on every stable tag** (after the release workflow's finalize job, draft still unpublished — publish the draft promptly so the channels never point at non-public assets):
 
-- **Homebrew tap** ([qtrcipher/homebrew-tap](https://github.com/qtrcipher/homebrew-tap)): `publish-homebrew` renders `packaging/homebrew/squash.rb` (CLI formula: macOS arm64/Intel + Linux tarballs) and `packaging/homebrew/squash-cask.rb` (GUI cask: per-arch dmg) with the version and SHA256s from `SHA256SUMS.txt`, then pushes to `Formula/squash.rb` + `Casks/squash.rb` in the tap repo. Users: `brew install qtrcipher/tap/squash` (CLI) / `brew install --cask qtrcipher/tap/squash` (GUI).
+- **Homebrew tap** ([qtrcipher/homebrew-tap](https://github.com/qtrcipher/homebrew-tap)): `publish-homebrew` renders `packaging/homebrew/squash.rb` (CLI formula: Linux tarball only) with the version and SHA256 from `SHA256SUMS.txt`, then pushes to `Formula/squash.rb` in the tap repo. Users: `brew install qtrcipher/tap/squash` (CLI, Linux).
 - **Scoop bucket** ([qtrcipher/scoop-bucket](https://github.com/qtrcipher/scoop-bucket)): `publish-scoop` renders `packaging/scoop/squash.json` (Windows CLI zip) to `bucket/squash.json`. The manifest carries `checkver`/`autoupdate` as a fallback, but the release workflow is the source of truth. Users: `scoop bucket add squash https://github.com/qtrcipher/scoop-bucket && scoop install squash`.
 
 Both jobs are **gated on the `TAP_GITHUB_TOKEN` secret** and no-op without it. To enable them, create a fine-grained PAT (github.com → Settings → Developer settings → Fine-grained tokens) scoped to **only** `qtrcipher/homebrew-tap` and `qtrcipher/scoop-bucket` with **Contents: Read and write**, and add it as the `TAP_GITHUB_TOKEN` secret (repo-level or in the `release` Environment).
@@ -94,16 +94,15 @@ The GUI self-updates via `tauri-plugin-updater` (docs/03 S6/D3). Update checks a
 - **stable** (default): `https://github.com/qtrcipher/squash/releases/latest/download/latest.json` — GitHub's `latest` alias never resolves to a prerelease. The finalize job attaches `latest.json` to every stable release.
 - **beta**: `https://github.com/qtrcipher/squash/releases/download/updates/beta.json` — prerelease tags refresh `beta.json` on the long-lived `updates` release (the workflow creates it on first use; it is not a Squash release).
 
-The finalize job generates the manifest from the assets *as published* and re-signs the updater bundles (`*.app.tar.gz`, `*.AppImage`, `*-setup.exe`) with the updater private key — the re-sign matters because the Windows `signtool` pass modifies the installer after the bundler signed it. The manifest embeds each platform's minisign signature; the app verifies it against the public key baked into `tauri.conf.json` (`plugins.updater.pubkey`) before installing.
+The finalize job generates the manifest from the assets *as published* and re-signs the updater bundles (`*.AppImage`, `*-setup.exe`) with the updater private key — the re-sign matters because the Windows `signtool` pass modifies the installer after the bundler signed it. The manifest embeds each platform's minisign signature; the app verifies it against the public key baked into `tauri.conf.json` (`plugins.updater.pubkey`) before installing.
 
 Rotating the keypair: `npm tauri signer generate -- -w <path>`, put the public key into `app/src-tauri/tauri.conf.json`, update the `TAURI_SIGNING_PRIVATE_KEY` secret. **Never commit the private key** — installed builds can only ever accept updates signed by their baked-in public key's counterpart, so losing it means no more updates for existing installs.
 
 ### Artifacts per release
 
-- **macOS**: `.dmg` + `.app.tar.gz` for Apple Silicon (`aarch64`) and Intel (`x86_64`) — per-arch builds, not universal2.
 - **Windows**: `.msi` + NSIS `-setup.exe` (x86_64).
 - **Linux**: `.deb`, `.rpm`, `.AppImage` (x86_64).
-- **CLI** (all OSes): `squash-<os>-<arch>.tar.gz` / `.zip` containing the `squash` binary, both LICENSE files, and the README.
+- **CLI** (Windows + Linux): `squash-<os>-<arch>.tar.gz` / `.zip` containing the `squash` binary, both LICENSE files, and the README.
 - **Checksums**: `SHA256SUMS.txt` covering every asset (hashed after upload, so sums match what's published), plus `SHA256SUMS.txt.asc` when GPG signing is configured.
 
 ### Secrets — which enable what
@@ -112,9 +111,6 @@ All signing is **gated on secret presence**: absent secrets no-op cleanly and th
 
 | Secret | Unlocks |
 |---|---|
-| `APPLE_CERTIFICATE`, `APPLE_CERTIFICATE_PASSWORD` | macOS codesigning (base64 `.p12` + its export password) |
-| `APPLE_SIGNING_IDENTITY` | Optional signing-identity override (default: first valid identity) |
-| `APPLE_ID`, `APPLE_PASSWORD`, `APPLE_TEAM_ID` | macOS notarization (Apple ID + app-specific password) |
 | `WINDOWS_CERTIFICATE`, `WINDOWS_CERTIFICATE_PASSWORD` | Windows `signtool` signing of the `.msi`/`.exe` (base64 `.pfx`). An OSS SignPath.io cert can replace this later |
 | `GPG_PRIVATE_KEY` (+ optional `GPG_PASSPHRASE`) | Detached ASCII-armored signature of `SHA256SUMS.txt` |
 | `TAURI_SIGNING_PRIVATE_KEY` (+ optional `TAURI_SIGNING_PRIVATE_KEY_PASSWORD`) | Updater bundle signatures (`.sig`) and the `latest.json`/`beta.json` manifests — without it, releases ship without updater manifests |
@@ -125,7 +121,6 @@ All signing is **gated on secret presence**: absent secrets no-op cleanly and th
 
 - One release at a time (workflow concurrency guard); reruns are idempotent — an existing draft for the tag is reused and assets are overwritten (`--clobber`).
 - The release cache (`shared-key: release`) is separate from CI because release builds may embed the Sentry DSN.
-- macOS codesigning/notarization run inside `tauri-action` when the Apple secrets are present; the workflow itself contains no Apple-specific steps.
 
 ## Ground rules
 

@@ -22,7 +22,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [macos-latest, ubuntu-latest, windows-latest]
+        os: [ubuntu-latest, windows-latest]
     steps:
       - uses: actions/checkout@v4
 
@@ -129,9 +129,8 @@ jobs:
   # GUI E2E (Phase 5, docs/05 §6): the REAL built app driven via WebDriver —
   # @wdio/tauri-service with the embedded provider (tauri-plugin-wdio-
   # webdriver behind cargo feature `e2e`), so no external tauri-driver is
-  # needed and macOS works too (WKWebView has no standalone driver). Happy
-  # paths only: F1 launch → S1, F2 compress (+CLI round-trip), F3 extract,
-  # RTL dir/screenshot. Details: app/e2e/README.md.
+  # needed. Happy paths only: F1 launch → S1, F2 compress (+CLI round-trip),
+  # F3 extract, RTL dir/screenshot. Details: app/e2e/README.md.
   e2e:
     name: E2E (${{ matrix.os }})
     runs-on: ${{ matrix.os }}
@@ -140,7 +139,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [macos-latest, ubuntu-latest, windows-latest]
+        os: [ubuntu-latest, windows-latest]
     defaults:
       run:
         working-directory: app

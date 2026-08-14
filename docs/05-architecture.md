@@ -1,5 +1,12 @@
 # Squash — Phase 0: Architecture
 
+> **Amendment 2026-08-14 — macOS target dropped.** Supported platforms are now
+> **Windows + Linux only** (owner decision: Apple signing embeds a personal
+> legal name in binaries — a privacy concern; macOS may return later via an
+> organization account). This document is a historical planning record; any
+> mention of macOS as a supported/shipped platform below is superseded. The
+> codebase stays portable — only builds, packaging, and platform claims changed.
+
 > Status: planning gate. No implementation code until this document is approved.
 > Owner of this document: `technical-architect`. Stack changes after this point require an ADR.
 > Inputs (do not re-derive): `docs/01-product-scope.md`, `docs/02-market-check.md`.
@@ -91,8 +98,8 @@ squash/
 
 Architectural implications only; mechanics belong to release-automation.
 
-- **CI matrix (GitHub Actions):** `macos-14` (arm64) + `macos-13` (x86_64, lipo universal2), `windows-latest` (MSVC), `ubuntu-latest` (gnu) + musl static build. Native runners per OS — **no cross-compilation for release artifacts** (avoids C-dependency cross toolchain pain from unrar/zstd/xz). Linux dev/CI sanity builds can run in Docker on the dev Mac, but releases come from CI runners.
-- **Signing:** macOS Developer ID + notarization (`notarytool`) and stapled dmg; Windows `signtool` — OSS cert via SignPath.io or purchase; until then, unsigned + checksums and we say so honestly (trust is the brand — doc 02 §3). Linux: tarball + SHA256 sums, GPG-signed.
+- **CI matrix (GitHub Actions):** `windows-latest` (MSVC), `ubuntu-latest` (gnu) + musl static build. *(2026-08-14 amendment: the macOS legs — originally `macos-14` arm64 + `macos-13` x86_64 lipo universal2 — were removed when macOS was dropped as a target.)* Native runners per OS — **no cross-compilation for release artifacts** (avoids C-dependency cross toolchain pain from unrar/zstd/xz). Linux dev/CI sanity builds can run in Docker on the dev machine, but releases come from CI runners.
+- **Signing:** Windows `signtool` — OSS cert via SignPath.io or purchase; until then, unsigned + checksums and we say so honestly (trust is the brand — doc 02 §3). Linux: tarball + SHA256 sums, GPG-signed. *(2026-08-14: the macOS Developer ID + notarization leg was removed with the platform.)*
 - **Reproducibility:** `Cargo.lock` committed; `cargo vendor` + `cargo audit` + `cargo deny` (license gate — blocks anything GPL-incompatible or unrar-license violations) run in CI. Dependency updates via Dependabot, auto-merged only if the full corpus suite passes.
 - **Homebrew/Scoop/winget:** formula/manifests generated from release artifacts in CI (doc 01 §3.7).
 
