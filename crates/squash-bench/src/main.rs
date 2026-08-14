@@ -1,10 +1,9 @@
-//! Benchmark harness stub (docs/05 §6).
-//!
-//! Phase 2+: runs the standard corpus (`benches/corpus/`) through Squash and
-//! `7zz`, records ratio + wall time, fails CI on regression > 2%.
+//! Benchmark harness binary (docs/05 §6). All logic lives in the library so
+//! the integration tests drive the same code paths.
+
+use clap::Parser;
+use squash_bench::cli::{self, Cli};
 
 fn main() {
-    // Prove the core linkage; the harness itself is Phase 2.
-    let _presets = squash_core::presets::PRESET_TABLE.len();
-    println!("squash-bench: benchmark harness not yet implemented");
+    std::process::exit(cli::run_cli(Cli::parse()));
 }

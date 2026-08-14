@@ -23,6 +23,12 @@ __pycache__/
 # Logs
 *.log
 
+# Benchmark artifacts: generated corpus + local result tracking stay out of
+# git (benches/baseline.json and benches/corpus/README.md are committed).
+benches/corpus/*
+!benches/corpus/README.md
+benches/results.jsonl
+
 # Frontend / Tauri
 app/dist/
 app/src-tauri/target/
