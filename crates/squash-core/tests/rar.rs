@@ -86,6 +86,21 @@ fn encrypted_header_rar_reports_password_required() {
 }
 
 #[test]
+fn fuzz_regression_null_flush_reports_corrupt_not_panic() {
+    // Phase 5 fuzz finding (fuzz_rar, 2026-08-14): this input drives UnRAR
+    // into a zero-length flush with a null data pointer, and the unrar-sys
+    // trampoline passed it to `slice::from_raw_parts` — UB even at size 0,
+    // caught by the fuzzer's unsafe-precondition checks. Fixed in unrar-sys
+    // (null+0 chunks are skipped); the archive must now fail as corrupt.
+    let Some(archive) = fixture("rar4-null-flush-regression.rar") else {
+        return;
+    };
+    let tmp = tempfile::tempdir().unwrap();
+    let err = extract(&archive, tmp.path()).unwrap_err();
+    assert_eq!(err, SquashError::CorruptArchive);
+}
+
+#[test]
 fn truncated_rar_reports_corrupt_archive() {
     let Some(archive) = fixture("rar5-sample.rar") else {
         return;

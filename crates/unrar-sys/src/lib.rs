@@ -197,6 +197,14 @@ impl Drop for RarArchive {
 
 extern "C" fn data_trampoline(data: *const u8, size: usize, user: *mut c_void) -> c_int {
     let sink = unsafe { &mut *user.cast::<&mut dyn FnMut(&[u8]) -> bool>() };
+    // UnRAR flushes with a null buffer when there is nothing to deliver
+    // (ComprDataIO::UnpWrite with a zero count) — found by fuzzing. Rust
+    // forbids `from_raw_parts` on a null pointer even at size 0, so skip the
+    // sink and keep decoding. A null pointer with a non-zero size would be a
+    // C-side bug: abort the decode instead of slicing it.
+    if data.is_null() {
+        return if size == 0 { 0 } else { 1 };
+    }
     let chunk = unsafe { std::slice::from_raw_parts(data, size) };
     c_int::from(!sink(chunk))
 }
@@ -222,4 +230,45 @@ unsafe fn cstr_to_string(ptr: *const c_char) -> String {
     unsafe { std::ffi::CStr::from_ptr(ptr) }
         .to_string_lossy()
         .into_owned()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// Drive the trampoline directly with a recording sink.
+    fn call_trampoline(data: *const u8, size: usize, received: &mut Vec<Vec<u8>>) -> c_int {
+        let mut sink = |chunk: &[u8]| -> bool {
+            received.push(chunk.to_vec());
+            true
+        };
+        let mut slot: &mut dyn FnMut(&[u8]) -> bool = &mut sink;
+        let user = (&mut slot as *mut &mut dyn FnMut(&[u8]) -> bool).cast::<c_void>();
+        data_trampoline(data, size, user)
+    }
+
+    #[test]
+    fn trampoline_tolerates_null_zero_length_flush() {
+        // Fuzz finding (Phase 5): UnRAR calls UCM_PROCESSDATA with a null
+        // buffer and zero size on flush; `slice::from_raw_parts(null, 0)` is
+        // UB. The chunk must be skipped, decoding continues (return 0).
+        let mut received = Vec::new();
+        assert_eq!(call_trampoline(std::ptr::null(), 0, &mut received), 0);
+        assert!(received.is_empty());
+    }
+
+    #[test]
+    fn trampoline_aborts_on_null_with_nonzero_size() {
+        let mut received = Vec::new();
+        assert_eq!(call_trampoline(std::ptr::null(), 64, &mut received), 1);
+        assert!(received.is_empty());
+    }
+
+    #[test]
+    fn trampoline_delivers_normal_chunks() {
+        let bytes = [1u8, 2, 3, 4];
+        let mut received = Vec::new();
+        assert_eq!(call_trampoline(bytes.as_ptr(), 4, &mut received), 0);
+        assert_eq!(received, vec![vec![1, 2, 3, 4]]);
+    }
 }

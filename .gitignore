@@ -23,6 +23,14 @@ __pycache__/
 # Logs
 *.log
 
+# Fuzzing (cargo-fuzz): corpora are regenerable via fuzz/seed-corpus.sh,
+# artifacts are crash findings (kept locally until triaged), target/ is the
+# nightly sanitizer build.
+fuzz/corpus/
+fuzz/artifacts/
+fuzz/smoke-logs/
+fuzz/target/
+
 # Benchmark artifacts: generated corpus + local result tracking stay out of
 # git (benches/baseline.json and benches/corpus/README.md are committed).
 benches/corpus/*

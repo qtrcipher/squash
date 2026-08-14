@@ -30,6 +30,7 @@ vendored here:
 | `rar4-sample.rar` | [sharpcompress](https://github.com/adamhathcock/sharpcompress) `tests/TestArchives/Archives/Rar4.rar` (BSD-licensed test corpus), fetched 2026-08-13 | RAR4; `тест.txt`, `exe/test.exe`, `jpg/test.jpg` (Cyrillic name exercises the non-ASCII path) |
 | `rar5-sample.rar` | same repo, `Rar5.rar` | RAR5; same entries + `Empty/` dir |
 | `rar5-encrypted-header.rar` | same repo, `Rar5.encrypted_filesAndHeader.rar` | RAR5 with encrypted headers → `PasswordRequired` |
+| `rar4-null-flush-regression.rar` | fuzz find, Phase 5 (`fuzz_rar`, libFuzzer mutation of `rar4-sample.rar`), captured 2026-08-14 | Regression: drives UnRAR into a zero-length flush with a null data pointer; the unrar-sys trampoline used to slice it (UB). Now must fail as `CorruptArchive`, never panic. |
 
 SHA-256 (pinned; tests skip loudly if a file is absent):
 
@@ -37,6 +38,7 @@ SHA-256 (pinned; tests skip loudly if a file is absent):
 9d9c261e50d3a84ab11a3701c7a736057fc970e59ca365885a41f60270c1875e  rar4-sample.rar
 3319de3e8a91a58d08d8a83f48ebae7e6b022c542b4a58775bab64f4063988a9  rar5-sample.rar
 63fc4b5576f7482311e950155607e171696588881bdd277c8c099efd2f98b6e2  rar5-encrypted-header.rar
+9f21eba2c3bae357d94721ad18049c63a3267b43ed05cc3f88eed05eff756ae8  rar4-null-flush-regression.rar
 ```
 
 **Known gap:** no fixture with an *Arabic* filename inside rar — none is

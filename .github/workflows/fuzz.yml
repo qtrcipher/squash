@@ -1,0 +1,63 @@
+# Squash fuzz smoke — cargo-fuzz over the extraction entry points
+# (docs/05-architecture.md §6; residual risks docs/07-security-audit.md §4).
+#
+# NOT per-push: CI minutes are metered (AGENTS.md). Weekly cron + manual
+# dispatch only. Each target is a separate matrix job so they run in
+# parallel; crashes land in fuzz/artifacts/<target>/ and are uploaded.
+# Findings are triaged by hand: a crash here fails the job on purpose.
+
+name: Fuzz
+
+on:
+  schedule:
+    # Weekly, Sunday 03:17 UTC.
+    - cron: '17 3 * * 0'
+  workflow_dispatch:
+
+jobs:
+  fuzz:
+    name: Fuzz ${{ matrix.target }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        target: [fuzz_zip, fuzz_tar, fuzz_tar_gz, fuzz_sevenz, fuzz_rar, fuzz_zst]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install nightly toolchain + cargo-fuzz
+        uses: dtolnay/rust-toolchain@nightly
+
+      - name: Cache cargo
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: fuzz
+
+      - name: Install cargo-fuzz
+        run: cargo install cargo-fuzz --locked
+
+      - name: Seed corpus
+        run: ./fuzz/seed-corpus.sh
+
+      # Bounded smoke run, not a marathon: archives are structured, so
+      # -max_len stays small and the magic-byte dictionary steers mutations
+      # past the header checks. The ExtractGuard env limits inside the
+      # targets keep bombs from OOM-ing the runner.
+      - name: Fuzz (5 min)
+        working-directory: fuzz
+        env:
+          CFLAGS: -fsanitize=address,fuzzer-no-link
+          CXXFLAGS: -fsanitize=address,fuzzer-no-link
+        run: |
+          cargo fuzz run "${{ matrix.target }}" -- \
+            -max_total_time=300 \
+            -max_len=262144 \
+            -dict=dictionaries/archive.dict
+
+      - name: Upload crash artifacts
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: fuzz-${{ matrix.target }}-artifacts
+          path: fuzz/artifacts/${{ matrix.target }}/
+          if-no-files-found: ignore

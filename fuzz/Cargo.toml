@@ -1,0 +1,64 @@
+[package]
+name = "squash-fuzz"
+version = "0.0.0"
+publish = false
+edition = "2021"
+license = "MIT OR Apache-2.0"
+
+[package.metadata]
+cargo-fuzz = true
+
+# Standalone workspace: the fuzz crate needs nightly + sanitizer flags and
+# must NOT join the root workspace (keeps `cargo clippy --workspace` and
+# `cargo fmt --all` on stable untouched — see docs/05 §6).
+[workspace]
+
+[dependencies]
+libfuzzer-sys = "0.4"
+squash-core = { path = "../crates/squash-core" }
+tempfile = "3"
+
+[lib]
+path = "src/lib.rs"
+
+[[bin]]
+name = "fuzz_zip"
+path = "fuzz_targets/fuzz_zip.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "fuzz_tar"
+path = "fuzz_targets/fuzz_tar.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "fuzz_tar_gz"
+path = "fuzz_targets/fuzz_tar_gz.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "fuzz_sevenz"
+path = "fuzz_targets/fuzz_sevenz.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "fuzz_rar"
+path = "fuzz_targets/fuzz_rar.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "fuzz_zst"
+path = "fuzz_targets/fuzz_zst.rs"
+test = false
+doc = false
+bench = false
