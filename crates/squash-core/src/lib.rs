@@ -17,7 +17,7 @@ pub mod progress;
 pub mod safety;
 pub mod store;
 
-pub use engine::{Engine, JobHandle};
+pub use engine::{Engine, JobHandle, JobStartGate};
 pub use error::SquashError;
 pub use format::{Format, FormatHandler, FormatRegistry, HandlerContext};
 pub use job::{Job, JobId, JobOptions, Operation};

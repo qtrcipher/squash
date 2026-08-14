@@ -179,6 +179,13 @@ pub struct AppState {
 
 impl AppState {
     pub fn new(dirs: store::StoreDirs) -> Self {
+        Self::with_engine(dirs, Engine::new())
+    }
+
+    /// Constructor with an injected engine — plain dependency injection so
+    /// tests can pass a deterministically gated engine (see
+    /// `squash_core::engine::JobStartGate`).
+    pub fn with_engine(dirs: store::StoreDirs, engine: Engine) -> Self {
         let settings_outcome = store::load_settings(&dirs.config_dir).unwrap_or_else(|err| {
             eprintln!("squash: settings load failed ({err}); using defaults");
             store::LoadOutcome::fresh(Settings::default())
@@ -207,7 +214,7 @@ impl AppState {
         }
         Self {
             dirs,
-            engine: Engine::new(),
+            engine,
             slots: Mutex::new(HashMap::new()),
             order: Mutex::new(Vec::new()),
             settings: Mutex::new(settings_outcome.value),
@@ -711,21 +718,20 @@ mod tests {
     #[test]
     fn cancel_marks_entry_cancelled() {
         let (_tmp, dirs) = test_dirs();
-        let state = AppState::new(dirs.clone());
-        // Occupy the single worker so the second job is still queued when the
-        // cancel lands — cancellation of a *running* job is cooperative and
-        // timing-dependent (mirrors the engine's own cancel test).
+        // Deterministic, no timing: the held start gate keeps both jobs
+        // queued, so the cancel lands before the target job can start —
+        // cancellation of a *running* job is cooperative and timing-dependent.
+        let gate = squash_core::engine::JobStartGate::new();
+        let state = AppState::with_engine(dirs.clone(), Engine::new_with_start_gate(gate.clone()));
         let src = dirs.data_dir.join("..").join("cancel-src");
         std::fs::create_dir_all(&src).unwrap();
-        for i in 0..500 {
-            std::fs::write(src.join(format!("f{i}.txt")), b"some content").unwrap();
-        }
         let busy = state.submit(compress_job(src.clone(), src.join("busy.zip")));
         let id = state.submit(compress_job(
             PathBuf::from("/definitely/not/here"),
             PathBuf::from("/tmp/out.zip"),
         ));
         assert!(state.cancel(&id));
+        gate.release();
         for job_id in [&busy, &id] {
             let handle = state.handle_for(job_id).unwrap();
             while let Some(event) = handle.next_event() {

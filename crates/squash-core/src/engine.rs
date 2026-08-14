@@ -15,13 +15,52 @@ use crate::format::{FormatRegistry, HandlerContext};
 use crate::job::{Job, JobId, Operation};
 use crate::progress::{JobStats, ProgressEvent};
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
-use std::sync::{mpsc, Arc, Mutex};
+use std::sync::{mpsc, Arc, Condvar, Mutex};
 use std::thread;
 
 pub struct Engine {
     registry: Arc<FormatRegistry>,
     next_job: AtomicU64,
     queue: mpsc::Sender<WorkItem>,
+}
+
+/// Test-only start gate: while held, the worker thread blocks *before*
+/// dequeuing each job, so every submitted job stays queued until
+/// [`JobStartGate::release`]. Exists so cancellation tests can deterministically
+/// cancel a queued job instead of racing the worker; **not public API**
+/// (`#[doc(hidden)]`). Once released, behavior is identical to an ungated
+/// engine and the gate is never consulted again in practice (the wait is a
+/// no-op check per dequeue).
+#[doc(hidden)]
+#[derive(Clone)]
+pub struct JobStartGate(Arc<(Mutex<bool>, Condvar)>);
+
+impl JobStartGate {
+    /// Create a held gate — no job starts until [`JobStartGate::release`].
+    pub fn new() -> Self {
+        Self(Arc::new((Mutex::new(false), Condvar::new())))
+    }
+
+    /// Let the worker run: drains every queued job, then runs normally.
+    pub fn release(&self) {
+        let (lock, cvar) = &*self.0;
+        *lock.lock().expect("gate lock") = true;
+        cvar.notify_all();
+    }
+
+    fn wait(&self) {
+        let (lock, cvar) = &*self.0;
+        let mut open = lock.lock().expect("gate lock");
+        while !*open {
+            open = cvar.wait(open).expect("gate lock");
+        }
+    }
+}
+
+impl Default for JobStartGate {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 struct WorkItem {
@@ -38,6 +77,31 @@ impl Engine {
         thread::spawn(move || {
             for item in rx {
                 run_job(&worker_registry, item);
+            }
+        });
+        Self {
+            registry,
+            next_job: AtomicU64::new(1),
+            queue: tx,
+        }
+    }
+
+    /// Engine whose worker blocks on `gate` before dequeuing each job.
+    /// Test-only companion of [`Engine::new`] — see [`JobStartGate`] for why
+    /// this exists and why it is `#[doc(hidden)]`.
+    #[doc(hidden)]
+    pub fn new_with_start_gate(gate: JobStartGate) -> Self {
+        let registry = Arc::new(FormatRegistry::new());
+        let (tx, rx) = mpsc::channel::<WorkItem>();
+        let worker_registry = Arc::clone(&registry);
+        thread::spawn(move || {
+            loop {
+                // Wait BEFORE dequeuing: a held gate keeps every job queued.
+                gate.wait();
+                match rx.recv() {
+                    Ok(item) => run_job(&worker_registry, item),
+                    Err(_) => break,
+                }
             }
         });
         Self {
@@ -298,17 +362,13 @@ mod tests {
 
     #[test]
     fn cancelled_queued_job_reports_cancelled() {
-        let engine = Engine::new();
-        // Occupy the single worker with a real job, then cancel the queued
-        // one before it starts.
+        // Deterministic, no timing: the held start gate keeps both jobs
+        // queued, so the cancel lands before the target job can start.
+        let gate = JobStartGate::new();
+        let engine = Engine::new_with_start_gate(gate.clone());
         let tmp = tempfile::tempdir().unwrap();
-        let src = tmp.path().join("src");
-        std::fs::create_dir_all(&src).unwrap();
-        for i in 0..500 {
-            std::fs::write(src.join(format!("f{i}.txt")), b"some content").unwrap();
-        }
         let busy = engine.submit(Job::compress(
-            vec![src],
+            vec![tmp.path().join("src")],
             tmp.path().join("busy.zip"),
             Format::Zip,
             Preset::Fast,
@@ -319,6 +379,7 @@ mod tests {
             Format::Zip,
         ));
         queued.cancel();
+        gate.release();
         let _ = busy.wait();
         assert_eq!(queued.wait(), Err(SquashError::Cancelled));
     }

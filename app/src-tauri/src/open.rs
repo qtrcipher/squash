@@ -75,10 +75,12 @@ mod tests {
     #[test]
     fn argv_resolves_relative_paths_against_cwd() {
         let args = vec!["squash".to_string(), "downloads/a.zip".to_string()];
-        assert_eq!(
-            paths_from_argv(&args, Path::new("/home/user")),
-            vec!["/home/user/downloads/a.zip"]
-        );
+        let cwd = Path::new("/home/user");
+        // Compute the expectation the same way the production code does, so
+        // the assertion checks the join behavior, not the platform's path
+        // separators (`\` on Windows).
+        let expected = cwd.join("downloads/a.zip").to_string_lossy().into_owned();
+        assert_eq!(paths_from_argv(&args, cwd), vec![expected]);
     }
 
     #[test]
