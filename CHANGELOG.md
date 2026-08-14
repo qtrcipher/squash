@@ -7,7 +7,7 @@ in [CONTRIBUTING.md](CONTRIBUTING.md)).
 
 ## [1.0.0] - 2026-08-15
 
-First public release — not yet tagged. Everything below is on `main` and ships with v0.1.0.
+First public release. Windows and Linux, desktop GUI + CLI.
 
 ### Added
 
@@ -27,7 +27,7 @@ First public release — not yet tagged. Everything below is on `main` and ships
   first-launch welcome sheet, and loading / empty / error / success states on every
   data-bound screen.
 - **i18n and theming**: English + Arabic with full RTL layout, light and dark themes.
-- **OS integration**: file associations for 11 archive formats on all three OSes, open-with
+- **OS integration**: file associations for 11 archive formats on Windows and Linux, open-with
   routing (cold and warm start), single-instance behavior, NSIS context-menu verbs (Windows),
   Linux desktop entry.
 - **Opt-in crash reporting** (Sentry): default off, in-app consent, path scrubbing before send,
@@ -59,4 +59,4 @@ First public release — not yet tagged. Everything below is on `main` and ships
 - **No silent telemetry**: all phone-home behavior (crash reports, update checks) is off by
   default and requires explicit user opt-in.
 
-[0.1.0]: https://github.com/qtrcipher/squash/releases/tag/v0.1.0
+[1.0.0]: https://github.com/qtrcipher/squash/releases/tag/v1.0.0
