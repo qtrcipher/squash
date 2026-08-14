@@ -55,6 +55,11 @@ Releases are built by `.github/workflows/release.yml`. Everything is driven by t
    ```sh
    git tag vX.Y.Z && git push origin main vX.Y.Z
    ```
+   **The tagged commit's message must NOT contain `[ci skip]`** — GitHub natively
+   skips *all* workflows (including the tag-triggered release) on a push whose
+   head commit says so. The release commit is the one commit that must never
+   carry it. (Verified 2026-08-14: tagging a `[ci skip]` docs commit produced
+   zero release runs.)
    Alternatively: Actions → **Release** → Run workflow with the version (no `v`); the tag is created at the selected ref.
 3. The workflow builds a **draft** release. Review the artifacts and `SHA256SUMS.txt` on the release page, then publish manually.
 4. Prerelease: any tag with a hyphen (`v0.2.0-beta.1`) is marked prerelease automatically — it feeds the **beta** update channel (see below).

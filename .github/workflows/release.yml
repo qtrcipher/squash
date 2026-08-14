@@ -198,24 +198,43 @@ jobs:
         working-directory: app
         run: npm ci
 
-      - name: Build GUI bundles and upload to the release
-        id: tauri
-        uses: tauri-apps/tauri-action@v1
+      - name: Export signing secrets (only when present)
+        # tauri-action/the bundler treat a SET-but-empty signing var as "sign"
+        # (an empty APPLE_CERTIFICATE made the rehearsal build fail in
+        # `security import`). Secrets map to empty strings when absent, so
+        # re-export through $GITHUB_ENV only when non-empty.
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
           APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
           APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
           APPLE_ID: ${{ secrets.APPLE_ID }}
           APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
-          # Updater signing (createUpdaterArtifacts in tauri.conf.json):
-          # produces the .sig next to each updater bundle. The finalize job
-          # re-signs the *published* assets into latest.json/beta.json, which
-          # also covers the signtool pass below (signtool changes the .exe
-          # after the bundler signed it).
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          for var in APPLE_CERTIFICATE APPLE_CERTIFICATE_PASSWORD APPLE_SIGNING_IDENTITY APPLE_ID APPLE_PASSWORD APPLE_TEAM_ID TAURI_SIGNING_PRIVATE_KEY TAURI_SIGNING_PRIVATE_KEY_PASSWORD; do
+            value="${!var}"
+            if [ -n "$value" ]; then
+              echo "$var=$value" >> "$GITHUB_ENV"
+            fi
+          done
+          if [ -z "${APPLE_CERTIFICATE}" ]; then
+            echo "No Apple certificate — unsigned (ad-hoc) macOS build."
+          fi
+          if [ -z "${TAURI_SIGNING_PRIVATE_KEY}" ]; then
+            echo "No updater key — updater artifacts will be unsigned."
+          fi
+
+      - name: Build GUI bundles and upload to the release
+        id: tauri
+        uses: tauri-apps/tauri-action@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # APPLE_* / TAURI_SIGNING_* arrive via $GITHUB_ENV from the step
+          # above — present only when the corresponding secret exists.
         with:
           projectPath: app
           releaseId: ${{ needs.prepare.outputs.release_id }}
