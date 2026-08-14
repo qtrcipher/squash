@@ -105,6 +105,7 @@
     "permission_denied": "Permission denied — check the folder's permissions.",
     "disk_full": "Disk full — free some space, then Retry.",
     "password_required": "This archive is encrypted. Squash v1 can't open encrypted archives.",
+    "decompression_bomb": "This archive expands to a suspicious size or entry count and was stopped as a safety precaution.",
     "cancelled": "Cancelled.",
     "internal": "Something went wrong.",
     "unknown": "Something went wrong."

@@ -28,6 +28,11 @@ struct squash_rar {
 
 /* --- UTF-8 <-> wchar_t (UTF-16 on Windows, UTF-32 on unix) ---------------- */
 
+/* UnRAR names are bounded by NM (1024) in practice; scan at most this many
+ * code units so a non-terminated FileNameW can never run the reader past the
+ * header struct into adjacent heap. 8x headroom costs nothing. */
+#define SQUASH_MAX_NAME_UNITS 8192
+
 static void append_utf8(std::string &out, uint32_t cp) {
   if (cp < 0x80) {
     out += (char)cp;
@@ -50,9 +55,10 @@ static std::string wide_to_utf8(const wchar_t *w) {
   std::string out;
   if (w == nullptr)
     return out;
+  size_t units = 0;
   if (sizeof(wchar_t) == 2) {
     const uint16_t *p = (const uint16_t *)w;
-    while (*p) {
+    while (*p && units++ < SQUASH_MAX_NAME_UNITS) {
       uint32_t cp = *p++;
       if (cp >= 0xD800 && cp <= 0xDBFF && p[0] >= 0xDC00 && p[0] <= 0xDFFF)
         cp = 0x10000 + ((cp - 0xD800) << 10) + (*p++ - 0xDC00);
@@ -60,7 +66,7 @@ static std::string wide_to_utf8(const wchar_t *w) {
     }
   } else {
     const uint32_t *p = (const uint32_t *)w;
-    while (*p)
+    while (*p && units++ < SQUASH_MAX_NAME_UNITS)
       append_utf8(out, *p++);
   }
   return out;
@@ -69,19 +75,32 @@ static std::string wide_to_utf8(const wchar_t *w) {
 #ifdef _WIN32
 static std::wstring utf8_to_wide(const char *s) {
   int n = MultiByteToWideChar(CP_UTF8, 0, s, -1, nullptr, 0);
-  std::wstring w(n > 0 ? n - 1 : 0, L'\0');
-  if (n > 1)
-    MultiByteToWideChar(CP_UTF8, 0, s, -1, &w[0], n); // &w[0]: C++11-safe
+  if (n <= 0)
+    return std::wstring();
+  /* n counts the terminating NUL the API writes — the buffer must hold it. */
+  std::wstring w((size_t)n, L'\0');
+  MultiByteToWideChar(CP_UTF8, 0, s, -1, &w[0], n); // &w[0]: C++11-safe
+  w.resize((size_t)n - 1);                          // drop the NUL from the body
   return w;
 }
 #endif
 
 /* --- callback bridge ------------------------------------------------------ */
 
+/* UCM_PROCESSDATA chunk-size sanity bound. UnRAR hands over slices of its
+ * own decode buffer (well under 1 MiB in practice); a negative or absurd
+ * p2 would become a huge size_t and an out-of-bounds slice on the Rust
+ * side, so refuse instead of forwarding. */
+#define SQUASH_MAX_PROCESS_CHUNK ((long long)64 * 1024 * 1024)
+
 static int CALLBACK on_unrar_msg(UINT msg, LPARAM user, LPARAM p1, LPARAM p2) {
   squash_rar *arc = (squash_rar *)user;
   switch (msg) {
   case UCM_PROCESSDATA:
+    if (p2 < 0 || (long long)p2 > SQUASH_MAX_PROCESS_CHUNK) {
+      arc->aborted = true;
+      return -1;
+    }
     if (arc->cb != nullptr &&
         arc->cb((const unsigned char *)p1, (size_t)p2, arc->user) != 0) {
       arc->aborted = true;

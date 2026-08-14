@@ -16,8 +16,10 @@
 //!   is for multi-file archives and never applies here: no folder is created
 //!   for the payload.
 //! - Both directions stream in 64 KiB chunks; nothing is buffered whole.
-//!   Decompression-bomb guarding (ratio/size caps) is Phase 3 — the decode
-//!   loop below is deliberately unbounded for now.
+//!   Extraction runs under the decompression-bomb guard
+//!   ([`crate::safety::ExtractGuard`], docs/07 §2): actual decoded bytes are
+//!   counted against ratio/absolute caps, a trip aborts the job with
+//!   [`SquashError::DecompressionBomb`] and removes the partial output file.
 
 use super::{map_decode, map_io};
 use crate::error::SquashError;
@@ -25,6 +27,7 @@ use crate::format::{Format, FormatHandler, HandlerContext};
 use crate::job::Job;
 use crate::layout::archive_stem;
 use crate::progress::{JobStats, ProgressEvent};
+use crate::safety::ExtractGuard;
 use std::fs::{self, File};
 use std::io::{self, BufReader, BufWriter, Read, Write};
 use std::path::{Path, PathBuf};
@@ -177,7 +180,8 @@ fn create_with<E: Write>(
     let mut encoder = make_encoder(file)?;
     // Compress side: reads come from the disk, writes go into the encoder —
     // both map through the io mapping (a codec failure here is `Internal`).
-    let in_bytes = pump(&mut reader, &mut encoder, input, ctx, map_io)?;
+    // No bomb guard: compression shrinks, and the input is the user's own.
+    let in_bytes = pump(&mut reader, &mut encoder, input, ctx, map_io, None)?;
     finish(encoder)?;
     Ok(JobStats {
         in_bytes,
@@ -188,7 +192,9 @@ fn create_with<E: Write>(
 
 /// Shared single-file extract: decode the stream into
 /// `<dest>/<name minus one codec extension>`, streaming with split read/write
-/// error mapping (read = decode → corrupt, write = disk → io).
+/// error mapping (read = decode → corrupt, write = disk → io) under the
+/// decompression-bomb guard. A guard trip (or any failure) deletes the
+/// partial output file the job created.
 fn extract_with(
     archive: &Path,
     dest_dir: &Path,
@@ -197,6 +203,7 @@ fn extract_with(
     decoder: impl FnOnce(File) -> io::Result<Box<dyn Read>>,
 ) -> Result<JobStats, SquashError> {
     let start = Instant::now();
+    let in_bytes = fs::metadata(archive).map(|m| m.len()).unwrap_or(0);
     let file = File::open(archive).map_err(map_io)?;
     let mut reader = decoder(file).map_err(map_decode)?;
     // Strip exactly ONE codec extension (`data.csv.gz` → `data.csv`).
@@ -213,11 +220,34 @@ fn extract_with(
         return Err(SquashError::Internal);
     }
     fs::create_dir_all(dest_dir).map_err(map_io)?;
-    let mut out = BufWriter::new(File::create(&target).map_err(map_io)?);
-    let out_bytes = pump(&mut reader, &mut out, &target, ctx, map_decode)?;
-    out.flush().map_err(map_io)?;
+    let mut guard = ExtractGuard::new(in_bytes);
+    // Track the output only when we create it: rollback must never delete a
+    // pre-existing file the job merely truncated.
+    let fresh = !target.exists();
+    let result = {
+        let mut out = BufWriter::new(File::create(&target).map_err(map_io)?);
+        if fresh {
+            guard.track_created(target.clone());
+        }
+        pump(
+            &mut reader,
+            &mut out,
+            &target,
+            ctx,
+            map_decode,
+            Some(&mut guard),
+        )
+        .and_then(|n| out.flush().map_err(map_io).map(|_| n))
+    };
+    let out_bytes = match result {
+        Ok(n) => n,
+        Err(err) => {
+            guard.rollback();
+            return Err(err);
+        }
+    };
     Ok(JobStats {
-        in_bytes: fs::metadata(archive).map(|m| m.len()).unwrap_or(0),
+        in_bytes,
         out_bytes,
         duration: start.elapsed(),
     })
@@ -226,13 +256,15 @@ fn extract_with(
 /// Stream `reader` → `writer` in 64 KiB chunks with cancellation checks and
 /// progress. Read errors are mapped by `map_read` (decode side on extract →
 /// corrupt; disk side on compress → io), write errors always come from the
-/// disk/encoder (→ io). Returns payload bytes moved.
+/// disk/encoder (→ io). On extract, `guard` counts actual decoded bytes
+/// against the bomb limits. Returns payload bytes moved.
 fn pump<R: Read, W: Write>(
     reader: &mut R,
     writer: &mut W,
     current_path: &Path,
     ctx: &HandlerContext,
     map_read: fn(io::Error) -> SquashError,
+    mut guard: Option<&mut ExtractGuard>,
 ) -> Result<u64, SquashError> {
     let mut buf = [0u8; 64 * 1024];
     let mut total = 0u64;
@@ -243,6 +275,9 @@ fn pump<R: Read, W: Write>(
             return Ok(total);
         }
         writer.write_all(&buf[..n]).map_err(map_io)?;
+        if let Some(guard) = guard.as_deref_mut() {
+            guard.record_bytes(n as u64)?;
+        }
         total += n as u64;
         ctx.report(ProgressEvent::Advanced {
             bytes_done: total,

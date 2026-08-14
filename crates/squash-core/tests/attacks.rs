@@ -11,6 +11,22 @@ fn engine() -> Engine {
     Engine::new()
 }
 
+/// Extract `archive` as `format` into `dest`, expecting failure.
+fn extract_err(archive: &Path, dest: &Path, format: Format) -> SquashError {
+    engine()
+        .submit(Job::extract(
+            vec![archive.to_path_buf()],
+            dest.to_path_buf(),
+            format,
+        ))
+        .wait()
+        .unwrap_err()
+}
+
+/// 100 MiB of zeros: compresses to ~100 KiB (≈1000:1), which trips the
+/// default bomb guard (ratio 200 past the 64 MiB floor — docs/07 §2).
+const BOMB_PAYLOAD: usize = 100 * 1024 * 1024;
+
 // --- crafted archives --------------------------------------------------------
 
 /// A zip containing `safe/ok.txt` plus `../../evil.txt`.
@@ -425,4 +441,263 @@ fn truncated_gz_reports_corrupt_archive() {
         .wait()
         .unwrap_err();
     assert_eq!(err, SquashError::CorruptArchive);
+}
+
+// --- Phase 3: symlink-chain escapes and decompression bombs (docs/07) --------
+
+/// A zip with the classic lexical-validation bypass: `c → .` passes any
+/// check, then `a → c/..` pops `c` lexically but the OS pops c's *target*.
+/// A file written through `a` would land outside the destination.
+#[cfg(unix)]
+fn crafted_zip_link_chain(path: &Path) {
+    let file = fs::File::create(path).unwrap();
+    let mut zip = zip::ZipWriter::new(file);
+    let opts = zip::write::SimpleFileOptions::default();
+    zip.add_symlink("c", ".", opts).unwrap();
+    zip.add_symlink("a", "c/..", opts).unwrap();
+    zip.start_file("a/evil.txt", opts).unwrap();
+    zip.write_all(b"evil").unwrap();
+    zip.finish().unwrap();
+}
+
+#[cfg(unix)]
+#[test]
+fn zip_symlink_chain_escape_aborts_with_path_traversal_blocked() {
+    let tmp = tempfile::tempdir().unwrap();
+    let archive = tmp.path().join("chain.zip");
+    crafted_zip_link_chain(&archive);
+    let dest = tmp.path().join("dest");
+
+    let err = extract_err(&archive, &dest, Format::Zip);
+    assert_eq!(err, SquashError::PathTraversalBlocked);
+    assert!(
+        !tmp.path().join("evil.txt").exists(),
+        "chain payload escaped the destination"
+    );
+    assert!(
+        !tmp.path().join("dest/evil.txt").exists(),
+        "chain payload escaped the layout folder"
+    );
+}
+
+#[cfg(unix)]
+#[test]
+fn tar_symlink_chain_escape_aborts_with_path_traversal_blocked() {
+    let tmp = tempfile::tempdir().unwrap();
+    let archive = tmp.path().join("chain.tar");
+    {
+        let file = fs::File::create(&archive).unwrap();
+        let mut builder = tar::Builder::new(file);
+        for (name, target) in [("c", "."), ("a", "c/..")] {
+            let mut header = tar::Header::new_gnu();
+            header.set_entry_type(tar::EntryType::Symlink);
+            header.set_size(0);
+            header.set_cksum();
+            builder.append_link(&mut header, name, target).unwrap();
+        }
+        let mut file_header = tar::Header::new_gnu();
+        file_header.set_size(4);
+        file_header.set_cksum();
+        builder
+            .append_data(&mut file_header, "a/evil.txt", &b"evil"[..])
+            .unwrap();
+        builder.finish().unwrap();
+    }
+    let dest = tmp.path().join("dest");
+
+    let err = extract_err(&archive, &dest, Format::Tar);
+    assert_eq!(err, SquashError::PathTraversalBlocked);
+    assert!(!tmp.path().join("evil.txt").exists());
+    assert!(!tmp.path().join("dest/evil.txt").exists());
+}
+
+/// Writing a file *through* a symlink the archive planted earlier is blocked
+/// even when the link points inside the destination: permitting it is what
+/// makes chain attacks exploitable, and strictness keeps the rule auditable.
+#[cfg(unix)]
+#[test]
+fn write_through_planted_symlink_is_blocked() {
+    let tmp = tempfile::tempdir().unwrap();
+    let archive = tmp.path().join("through.tar");
+    {
+        let file = fs::File::create(&archive).unwrap();
+        let mut builder = tar::Builder::new(file);
+        let mut dir_header = tar::Header::new_gnu();
+        dir_header.set_entry_type(tar::EntryType::Directory);
+        dir_header.set_size(0);
+        dir_header.set_cksum();
+        builder
+            .append_data(&mut dir_header, "sub", &b""[..])
+            .unwrap();
+        let mut link_header = tar::Header::new_gnu();
+        link_header.set_entry_type(tar::EntryType::Symlink);
+        link_header.set_size(0);
+        link_header.set_cksum();
+        builder.append_link(&mut link_header, "d", "sub").unwrap();
+        let mut file_header = tar::Header::new_gnu();
+        file_header.set_size(1);
+        file_header.set_cksum();
+        builder
+            .append_data(&mut file_header, "d/f.txt", &b"x"[..])
+            .unwrap();
+        builder.finish().unwrap();
+    }
+    let dest = tmp.path().join("dest");
+
+    let err = extract_err(&archive, &dest, Format::Tar);
+    assert_eq!(err, SquashError::PathTraversalBlocked);
+}
+
+/// A zip deflating 100 MiB of zeros (~1000:1) — trips the ratio cap.
+fn crafted_zip_bomb(path: &Path) {
+    let file = fs::File::create(path).unwrap();
+    let mut zip = zip::ZipWriter::new(file);
+    let opts = zip::write::SimpleFileOptions::default()
+        .compression_method(zip::CompressionMethod::Deflated);
+    zip.start_file("payload.bin", opts).unwrap();
+    let zeros = vec![0u8; 1024 * 1024];
+    for _ in 0..(BOMB_PAYLOAD / zeros.len()) {
+        zip.write_all(&zeros).unwrap();
+    }
+    zip.finish().unwrap();
+}
+
+#[test]
+fn zip_bomb_aborts_and_cleans_up_partial_output() {
+    let tmp = tempfile::tempdir().unwrap();
+    let archive = tmp.path().join("bomb.zip");
+    crafted_zip_bomb(&archive);
+    let compressed = fs::metadata(&archive).unwrap().len();
+    assert!(
+        compressed < 1024 * 1024,
+        "fixture must compress extremely well"
+    );
+    let dest = tmp.path().join("dest");
+
+    let err = extract_err(&archive, &dest, Format::Zip);
+    assert_eq!(err, SquashError::DecompressionBomb);
+    assert!(
+        !dest.join("bomb/payload.bin").exists(),
+        "partial bomb output must be rolled back"
+    );
+    assert!(
+        !dest.join("bomb").exists(),
+        "the layout folder the job created must be rolled back too"
+    );
+}
+
+#[test]
+fn tar_gz_bomb_aborts_and_cleans_up() {
+    let tmp = tempfile::tempdir().unwrap();
+    let archive = tmp.path().join("bomb.tar.gz");
+    {
+        let file = fs::File::create(&archive).unwrap();
+        let enc = flate2::write::GzEncoder::new(file, flate2::Compression::new(6));
+        let mut builder = tar::Builder::new(enc);
+        let mut header = tar::Header::new_gnu();
+        header.set_size(BOMB_PAYLOAD as u64);
+        header.set_cksum();
+        builder
+            .append_data(
+                &mut header,
+                "payload.bin",
+                std::io::Read::take(std::io::repeat(0), BOMB_PAYLOAD as u64),
+            )
+            .unwrap();
+        let enc = builder.into_inner().unwrap();
+        enc.finish().unwrap();
+    }
+    let dest = tmp.path().join("dest");
+
+    let err = extract_err(&archive, &dest, Format::TarGz);
+    assert_eq!(err, SquashError::DecompressionBomb);
+    assert!(
+        !dest.join("bomb").exists(),
+        "partial bomb output must be rolled back"
+    );
+}
+
+#[test]
+fn single_file_gz_bomb_aborts_and_deletes_partial_file() {
+    let tmp = tempfile::tempdir().unwrap();
+    let archive = tmp.path().join("bomb.gz");
+    {
+        let file = fs::File::create(&archive).unwrap();
+        let mut enc = flate2::write::GzEncoder::new(file, flate2::Compression::new(6));
+        let zeros = vec![0u8; 1024 * 1024];
+        for _ in 0..(BOMB_PAYLOAD / zeros.len()) {
+            enc.write_all(&zeros).unwrap();
+        }
+        enc.finish().unwrap();
+    }
+    let dest = tmp.path().join("dest");
+
+    let err = extract_err(&archive, &dest, Format::Gz);
+    assert_eq!(err, SquashError::DecompressionBomb);
+    assert!(
+        !dest.join("bomb").exists(),
+        "partial output file must be deleted"
+    );
+}
+
+#[test]
+fn small_high_ratio_archive_still_extracts() {
+    // 1 MiB of zeros is ~1000:1 but far below the 64 MiB floor — legit.
+    let tmp = tempfile::tempdir().unwrap();
+    let archive = tmp.path().join("small.zip");
+    {
+        let file = fs::File::create(&archive).unwrap();
+        let mut zip = zip::ZipWriter::new(file);
+        let opts = zip::write::SimpleFileOptions::default()
+            .compression_method(zip::CompressionMethod::Deflated);
+        zip.start_file("zeros.bin", opts).unwrap();
+        zip.write_all(&vec![0u8; 1024 * 1024]).unwrap();
+        zip.finish().unwrap();
+    }
+    let dest = tmp.path().join("dest");
+
+    engine()
+        .submit(Job::extract(vec![archive], dest.clone(), Format::Zip))
+        .wait()
+        .unwrap();
+    assert_eq!(
+        fs::metadata(dest.join("small/zeros.bin")).unwrap().len(),
+        1024 * 1024
+    );
+}
+
+/// 42.zip-style nesting is neutralized structurally: Squash never recurses
+/// into extracted archives, so the inner bomb lands as an inert file.
+#[test]
+fn nested_zip_bomb_extracts_as_plain_files() {
+    let tmp = tempfile::tempdir().unwrap();
+    let inner = tmp.path().join("inner.zip");
+    crafted_zip_bomb(&inner);
+    let inner_bytes = fs::read(&inner).unwrap();
+    fs::remove_file(&inner).unwrap();
+
+    let outer = tmp.path().join("outer.zip");
+    {
+        let file = fs::File::create(&outer).unwrap();
+        let mut zip = zip::ZipWriter::new(file);
+        let opts = zip::write::SimpleFileOptions::default();
+        zip.start_file("inner.zip", opts).unwrap();
+        zip.write_all(&inner_bytes).unwrap();
+        zip.finish().unwrap();
+    }
+    let dest = tmp.path().join("dest");
+
+    engine()
+        .submit(Job::extract(vec![outer], dest.clone(), Format::Zip))
+        .wait()
+        .unwrap();
+    let landed = dest.join("outer/inner.zip");
+    assert!(landed.exists(), "inner archive extracted as a plain file");
+    assert_eq!(
+        fs::metadata(&landed).unwrap().len(),
+        inner_bytes.len() as u64
+    );
+    // …and if the user explicitly extracts the inner one, the guard trips.
+    let err = extract_err(&landed, &dest.join("round2"), Format::Zip);
+    assert_eq!(err, SquashError::DecompressionBomb);
 }

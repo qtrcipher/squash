@@ -77,13 +77,37 @@ pub(crate) fn map_decode(err: io::Error) -> SquashError {
 /// Combined mapping for `io::copy`-style operations where read (decode) and
 /// write (disk) errors share one channel: decode-shaped kinds mean corrupt
 /// input, the rest go through [`map_io`]. Prefer split read/write loops
-/// (see `tar_family::copy_entry`) when the decoder reports `Other`.
+/// (see [`copy_guarded`]) when the decoder reports `Other`.
 pub(crate) fn map_transfer(err: io::Error) -> SquashError {
     match err.kind() {
         io::ErrorKind::InvalidData | io::ErrorKind::InvalidInput | io::ErrorKind::UnexpectedEof => {
             SquashError::CorruptArchive
         }
         _ => map_io(err),
+    }
+}
+
+/// Copy an entry's payload to disk in 64 KiB chunks with the error sides
+/// split (read errors come from the decode stream → `map_read`; write errors
+/// from the disk → io mapping) and every chunk counted against the
+/// decompression-bomb `guard` ([`crate::safety::ExtractGuard`]). Returns the
+/// actual bytes written — never trust a header's declared size.
+pub(crate) fn copy_guarded<R: io::Read + ?Sized, W: io::Write>(
+    reader: &mut R,
+    writer: &mut W,
+    guard: &mut crate::safety::ExtractGuard,
+    map_read: fn(io::Error) -> SquashError,
+) -> Result<u64, SquashError> {
+    let mut buf = [0u8; 64 * 1024];
+    let mut total = 0u64;
+    loop {
+        let n = reader.read(&mut buf).map_err(map_read)?;
+        if n == 0 {
+            return Ok(total);
+        }
+        writer.write_all(&buf[..n]).map_err(map_io)?;
+        guard.record_bytes(n as u64)?;
+        total += n as u64;
     }
 }
 

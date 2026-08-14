@@ -15,7 +15,7 @@ pub const CORRUPT: i32 = 3;
 pub const ENCRYPTED: i32 = 4;
 /// I/O failures including disk full and permission denied.
 pub const IO: i32 = 5;
-/// Unsafe archive (path traversal / zip-slip blocked).
+/// Unsafe archive (path traversal / zip-slip / decompression-bomb guard).
 pub const UNSAFE_PATH: i32 = 6;
 /// Cancelled by the user.
 pub const CANCELLED: i32 = 7;

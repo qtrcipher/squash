@@ -23,6 +23,11 @@ pub enum SquashError {
     /// Stubbed — encrypted archives are out of scope for v1 (docs/03 D2).
     #[error("password required")]
     PasswordRequired,
+    /// Decompression-bomb guard tripped (docs/07 §2): the archive expanded
+    /// past the ratio/absolute/entry-count limits. Added in Phase 3 — additive
+    /// change to the code contract, not a rename.
+    #[error("archive exceeds extraction safety limits")]
+    DecompressionBomb,
     #[error("cancelled")]
     Cancelled,
     #[error("internal error")]
@@ -39,19 +44,21 @@ impl SquashError {
             Self::PermissionDenied => "permission_denied",
             Self::DiskFull => "disk_full",
             Self::PasswordRequired => "password_required",
+            Self::DecompressionBomb => "decompression_bomb",
             Self::Cancelled => "cancelled",
             Self::Internal => "internal",
         }
     }
 
     /// All variants, for exhaustive tests.
-    pub const ALL: [SquashError; 8] = [
+    pub const ALL: [SquashError; 9] = [
         Self::UnsupportedFormat,
         Self::CorruptArchive,
         Self::PathTraversalBlocked,
         Self::PermissionDenied,
         Self::DiskFull,
         Self::PasswordRequired,
+        Self::DecompressionBomb,
         Self::Cancelled,
         Self::Internal,
     ];
@@ -90,6 +97,7 @@ mod tests {
             (SquashError::PermissionDenied, "permission_denied"),
             (SquashError::DiskFull, "disk_full"),
             (SquashError::PasswordRequired, "password_required"),
+            (SquashError::DecompressionBomb, "decompression_bomb"),
             (SquashError::Cancelled, "cancelled"),
             (SquashError::Internal, "internal"),
         ];

@@ -6,13 +6,16 @@
 //! [`SquashError::PasswordRequired`] — encryption is out of scope for v1
 //! (docs/03 D2).
 
-use super::{map_io, map_transfer, slash_path, walk_inputs};
+use super::{copy_guarded, map_io, map_transfer, slash_path, walk_inputs};
 use crate::error::SquashError;
 use crate::format::{Format, FormatHandler, HandlerContext};
 use crate::job::Job;
 use crate::layout::{extraction_target, EntryMeta};
 use crate::progress::{JobStats, ProgressEvent};
-use crate::safety::{sanitize_entry_path, sanitize_link_target};
+use crate::safety::{
+    create_dir_all_guarded, create_file_guarded, sanitize_entry_path, sanitize_link_target,
+    ExtractGuard,
+};
 use std::fs::{self, File};
 use std::io::{self, Read};
 use std::path::{Path, PathBuf};
@@ -24,6 +27,10 @@ pub struct ZipHandler;
 
 const S_IFMT: u32 = 0o170000;
 const S_IFLNK: u32 = 0o120000;
+/// A symlink target longer than this is not a link, it's an attack or a bug
+/// (PATH_MAX is 4096 on Linux, ~1024 on macOS) — refuse before the unbounded
+/// `read_to_string` allocates on attacker-controlled entry data.
+const MAX_SYMLINK_TARGET: u64 = 8192;
 
 impl FormatHandler for ZipHandler {
     fn format(&self) -> Format {
@@ -127,58 +134,95 @@ impl FormatHandler for ZipHandler {
             });
         }
         let target = extraction_target(dest_dir, archive, Format::Zip, &meta);
+        let in_bytes = fs::metadata(archive).map(|m| m.len()).unwrap_or(0);
+        let mut guard = ExtractGuard::new(in_bytes);
+        // Track the layout folder only when we actually create it — never
+        // mark a pre-existing destination for rollback.
+        let fresh_target = target != dest_dir && !target.exists();
         fs::create_dir_all(&target).map_err(map_io)?;
+        if fresh_target {
+            guard.track_created(target.clone());
+        }
 
-        // Pass 2: sanitized, entry-by-entry extraction.
-        let mut out_bytes = 0u64;
+        // Pass 2: sanitized, entry-by-entry extraction. Any failure rolls
+        // back the partial output the job created.
+        let result = self.extract_entries(&mut zip, &target, ctx, &mut guard);
+        match result {
+            Ok(()) => {}
+            Err(err) => {
+                guard.rollback();
+                return Err(err);
+            }
+        }
+
+        Ok(JobStats {
+            in_bytes,
+            out_bytes: guard.out_bytes(),
+            duration: start.elapsed(),
+        })
+    }
+}
+
+impl ZipHandler {
+    /// Pass 2 of extraction: write every entry under `target`, counting
+    /// actual bytes against the bomb guard.
+    fn extract_entries<R: io::Read + io::Seek>(
+        &self,
+        zip: &mut ZipArchive<R>,
+        target: &Path,
+        ctx: &HandlerContext,
+        guard: &mut ExtractGuard,
+    ) -> Result<(), SquashError> {
         for i in 0..zip.len() {
             ctx.check_cancelled()?;
+            guard.record_entry()?;
             let mut entry = zip.by_index(i).map_err(map_zip)?;
-            let path = sanitize_entry_path(&target, &entry_path(&entry))?;
+            let path = sanitize_entry_path(target, &entry_path(&entry))?;
             let is_symlink = entry
                 .unix_mode()
                 .map(|mode| mode & S_IFMT == S_IFLNK)
                 .unwrap_or(false);
 
             if entry.is_dir() {
-                fs::create_dir_all(&path).map_err(map_io)?;
+                create_dir_all_guarded(target, &path, guard)?;
             } else if is_symlink {
                 let mut link_target = String::new();
                 entry
+                    .by_ref()
+                    .take(MAX_SYMLINK_TARGET + 1)
                     .read_to_string(&mut link_target)
                     .map_err(map_transfer)?;
-                // Validate BEFORE creating: the job aborts on escape.
-                sanitize_link_target(&target, &path, Path::new(&link_target))?;
+                if link_target.len() as u64 > MAX_SYMLINK_TARGET {
+                    return Err(SquashError::CorruptArchive);
+                }
+                // Parents first so target validation resolves against the
+                // real tree; the job aborts on escape.
+                if let Some(parent) = path.parent() {
+                    create_dir_all_guarded(target, parent, guard)?;
+                }
+                sanitize_link_target(target, &path, Path::new(&link_target))?;
                 #[cfg(unix)]
                 {
-                    if let Some(parent) = path.parent() {
-                        fs::create_dir_all(parent).map_err(map_io)?;
-                    }
+                    let fresh = !path.exists();
                     let _ = fs::remove_file(&path);
                     std::os::unix::fs::symlink(&link_target, &path).map_err(map_io)?;
+                    if fresh {
+                        guard.track_created(path.clone());
+                    }
                 }
                 // Non-unix: symlink materialization is skipped (Windows needs
                 // privileges); the target was still validated above.
             } else {
-                if let Some(parent) = path.parent() {
-                    fs::create_dir_all(parent).map_err(map_io)?;
-                }
-                let mut out = File::create(&path).map_err(map_io)?;
-                io::copy(&mut entry, &mut out).map_err(map_transfer)?;
-                out_bytes += entry.size();
+                let mut out = create_file_guarded(target, &path, guard)?;
+                copy_guarded(&mut entry, &mut out, guard, map_transfer)?;
             }
             ctx.report(ProgressEvent::Advanced {
-                bytes_done: out_bytes,
+                bytes_done: guard.out_bytes(),
                 entries_done: i as u64 + 1,
                 current_path: path,
             });
         }
-
-        Ok(JobStats {
-            in_bytes: fs::metadata(archive).map(|m| m.len()).unwrap_or(0),
-            out_bytes,
-            duration: start.elapsed(),
-        })
+        Ok(())
     }
 }
 

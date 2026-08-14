@@ -332,6 +332,10 @@ fn plain_message(error: &SquashError, archive: Option<&Path>) -> String {
         SquashError::PasswordRequired => {
             "this archive is encrypted. Squash v1 can't open encrypted archives".to_string()
         }
+        SquashError::DecompressionBomb => {
+            "this archive expands to a suspicious size or entry count and was stopped as a safety precaution"
+                .to_string()
+        }
         SquashError::Cancelled => "cancelled".to_string(),
         SquashError::Internal => "internal error".to_string(),
     }
@@ -344,7 +348,10 @@ pub fn error_exit_code(error: &SquashError) -> i32 {
         SquashError::CorruptArchive => exit_codes::CORRUPT,
         SquashError::PasswordRequired => exit_codes::ENCRYPTED,
         SquashError::PermissionDenied | SquashError::DiskFull => exit_codes::IO,
-        SquashError::PathTraversalBlocked => exit_codes::UNSAFE_PATH,
+        // Both mean "this archive is unsafe" to a script (docs/07 §2).
+        SquashError::PathTraversalBlocked | SquashError::DecompressionBomb => {
+            exit_codes::UNSAFE_PATH
+        }
         SquashError::Cancelled => exit_codes::CANCELLED,
         SquashError::Internal => exit_codes::INTERNAL,
     }
@@ -516,6 +523,10 @@ mod tests {
             exit_codes::ENCRYPTED
         );
         assert_eq!(error_exit_code(&SquashError::DiskFull), exit_codes::IO);
+        assert_eq!(
+            error_exit_code(&SquashError::DecompressionBomb),
+            exit_codes::UNSAFE_PATH
+        );
         assert_eq!(
             error_exit_code(&SquashError::UnsupportedFormat),
             exit_codes::USAGE

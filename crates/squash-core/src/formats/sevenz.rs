@@ -14,16 +14,18 @@
 //! **dereferenced** on compress (the target's contents are stored as a plain
 //! file) — the same fallback the zip handler uses on non-unix.
 
-use super::{map_decode, map_io, slash_path, walk_inputs};
+use super::{copy_guarded, map_decode, map_io, slash_path, walk_inputs};
 use crate::error::SquashError;
 use crate::format::{Format, FormatHandler, HandlerContext};
 use crate::job::Job;
 use crate::layout::{extraction_target, EntryMeta};
 use crate::progress::{JobStats, ProgressEvent};
-use crate::safety::sanitize_entry_path;
+use crate::safety::{
+    create_dir_all_guarded, create_file_guarded, sanitize_entry_path, ExtractGuard,
+};
 use sevenz_rust2::{ArchiveEntry, ArchiveReader, ArchiveWriter, Error as SevenZError, Password};
 use std::fs::{self, File};
-use std::io::{Read, Write};
+use std::io::Read;
 use std::path::{Path, PathBuf};
 use std::time::Instant;
 
@@ -115,24 +117,29 @@ impl FormatHandler for SevenZHandler {
             })
             .collect();
         let target = extraction_target(dest_dir, archive, Format::SevenZ, &meta);
+        let in_bytes = fs::metadata(archive).map(|m| m.len()).unwrap_or(0);
+        let mut guard = ExtractGuard::new(in_bytes);
+        let fresh_target = target != dest_dir && !target.exists();
         fs::create_dir_all(&target).map_err(map_io)?;
+        if fresh_target {
+            guard.track_created(target.clone());
+        }
 
         // The closure speaks the crate's error type; our own failures travel
         // out through this slot and are checked after the decode loop.
         let mut inner: Option<SquashError> = None;
-        let mut out_bytes = 0u64;
         let mut entries_done = 0u64;
         let decode = reader.for_each_entries(|entry, data| {
             if inner.is_some() {
                 return Ok(false);
             }
-            match extract_entry(entry, data, &target, ctx, &mut out_bytes) {
+            match extract_entry(entry, data, &target, ctx, &mut guard) {
                 // Anti-items are skipped silently: no entry, no progress.
                 Ok(None) => Ok(true),
                 Ok(Some(path)) => {
                     entries_done += 1;
                     ctx.report(ProgressEvent::Advanced {
-                        bytes_done: out_bytes,
+                        bytes_done: guard.out_bytes(),
                         entries_done,
                         current_path: path,
                     });
@@ -145,58 +152,47 @@ impl FormatHandler for SevenZHandler {
             }
         });
         if let Some(err) = inner {
+            guard.rollback();
             return Err(err);
         }
-        decode.map_err(map_7z_decode)?;
+        if let Err(err) = decode {
+            guard.rollback();
+            return Err(map_7z_decode(err));
+        }
 
         Ok(JobStats {
-            in_bytes: fs::metadata(archive).map(|m| m.len()).unwrap_or(0),
-            out_bytes,
+            in_bytes,
+            out_bytes: guard.out_bytes(),
             duration: start.elapsed(),
         })
     }
 }
 
 /// Extract one entry under the (already layout-resolved) target. The path is
-/// sanitized before a single byte is written; reads map to corrupt, writes
-/// to the I/O taxonomy. Returns the on-disk path for progress reporting, or
+/// sanitized and symlink-guarded before a single byte is written; reads map
+/// to corrupt, writes to the I/O taxonomy, and actual bytes count against
+/// the bomb guard. Returns the on-disk path for progress reporting, or
 /// `None` for skipped anti-items.
 fn extract_entry(
     entry: &ArchiveEntry,
     data: &mut dyn Read,
     target: &Path,
     ctx: &HandlerContext,
-    out_bytes: &mut u64,
+    guard: &mut ExtractGuard,
 ) -> Result<Option<PathBuf>, SquashError> {
     ctx.check_cancelled()?;
     if entry.is_anti_item {
         return Ok(None);
     }
+    guard.record_entry()?;
     let path = sanitize_entry_path(target, &entry_path(entry.name()))?;
     if entry.is_directory() {
-        fs::create_dir_all(&path).map_err(map_io)?;
+        create_dir_all_guarded(target, &path, guard)?;
     } else {
-        if let Some(parent) = path.parent() {
-            fs::create_dir_all(parent).map_err(map_io)?;
-        }
-        let mut out = File::create(&path).map_err(map_io)?;
-        copy_entry(data, &mut out)?;
-        *out_bytes += entry.size();
+        let mut out = create_file_guarded(target, &path, guard)?;
+        copy_guarded(data, &mut out, guard, map_decode)?;
     }
     Ok(Some(path))
-}
-
-/// Split-side copy (see `tar_family::copy_entry`): read errors come from the
-/// decode stream (→ corrupt), write errors from the disk (→ io mapping).
-fn copy_entry(reader: &mut dyn Read, writer: &mut impl Write) -> Result<(), SquashError> {
-    let mut buf = [0u8; 64 * 1024];
-    loop {
-        let n = reader.read(&mut buf).map_err(map_decode)?;
-        if n == 0 {
-            return Ok(());
-        }
-        writer.write_all(&buf[..n]).map_err(map_io)?;
-    }
 }
 
 /// Entry name normalized to forward slashes (some tools write `\`).

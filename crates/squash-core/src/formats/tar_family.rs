@@ -10,13 +10,16 @@
 //! costs a second decode of the stream; correctness of the layout rule beats
 //! the saving at this stage.
 
-use super::{map_decode, map_io, walk_inputs, WalkEntry};
+use super::{copy_guarded, map_decode, map_io, walk_inputs, WalkEntry};
 use crate::error::SquashError;
 use crate::format::{Format, FormatHandler, HandlerContext};
 use crate::job::Job;
 use crate::layout::{extraction_target, EntryMeta};
 use crate::progress::{JobStats, ProgressEvent};
-use crate::safety::{sanitize_entry_path, sanitize_link_target};
+use crate::safety::{
+    create_dir_all_guarded, create_file_guarded, reject_symlink_components, sanitize_entry_path,
+    sanitize_link_target, ExtractGuard,
+};
 use std::fs::{self, File};
 use std::io::{self, BufReader, Read, Write};
 use std::path::Path;
@@ -241,13 +244,28 @@ fn extract_with(
     // Pass 1: metadata for the layout decision.
     let meta = tar_list(open()?)?;
     let target = extraction_target(dest_dir, archive, format, &meta);
-    // Pass 2: sanitized extraction.
-    let out_bytes = tar_extract(open()?, &target, ctx)?;
-    Ok(JobStats {
-        in_bytes: fs::metadata(archive).map(|m| m.len()).unwrap_or(0),
-        out_bytes,
-        duration: start.elapsed(),
-    })
+    // Pass 2: sanitized extraction under the bomb guard; any failure rolls
+    // back the partial output the job created.
+    let in_bytes = fs::metadata(archive).map(|m| m.len()).unwrap_or(0);
+    let mut guard = ExtractGuard::new(in_bytes);
+    // The layout folder itself is tracked only when we actually create it —
+    // never mark a pre-existing destination for rollback.
+    let fresh_target = target != dest_dir && !target.exists();
+    fs::create_dir_all(&target).map_err(map_io)?;
+    if fresh_target {
+        guard.track_created(target.clone());
+    }
+    match tar_extract(open()?, &target, ctx, &mut guard) {
+        Ok(()) => Ok(JobStats {
+            in_bytes,
+            out_bytes: guard.out_bytes(),
+            duration: start.elapsed(),
+        }),
+        Err(err) => {
+            guard.rollback();
+            Err(err)
+        }
+    }
 }
 
 fn tar_list<R: Read>(reader: R) -> Result<Vec<EntryMeta>, SquashError> {
@@ -263,45 +281,28 @@ fn tar_list<R: Read>(reader: R) -> Result<Vec<EntryMeta>, SquashError> {
     Ok(out)
 }
 
-/// Copy an entry's payload to disk with the error sides split: read errors
-/// come from the decode stream (→ corrupt), write errors from the disk
-/// (→ io mapping). `io::copy` cannot tell the two apart.
-fn copy_entry<R: Read, W: Write>(reader: &mut R, writer: &mut W) -> Result<u64, SquashError> {
-    let mut buf = [0u8; 64 * 1024];
-    let mut total = 0u64;
-    loop {
-        let n = reader.read(&mut buf).map_err(map_decode)?;
-        if n == 0 {
-            return Ok(total);
-        }
-        writer.write_all(&buf[..n]).map_err(map_io)?;
-        total += n as u64;
-    }
-}
-
+// Copying is shared with the other handlers: `copy_guarded` (in
+// `formats::mod`) splits read/write error sides and counts actual bytes
+// against the bomb guard.
 fn tar_extract<R: Read>(
     reader: R,
     target: &Path,
     ctx: &HandlerContext,
-) -> Result<u64, SquashError> {
+    guard: &mut ExtractGuard,
+) -> Result<(), SquashError> {
     let mut archive = tar::Archive::new(reader);
-    fs::create_dir_all(target).map_err(map_io)?;
-    let mut out_bytes = 0u64;
     for (index, entry) in archive.entries().map_err(map_decode)?.enumerate() {
         ctx.check_cancelled()?;
+        guard.record_entry()?;
         let mut entry = entry.map_err(map_decode)?;
         let path = sanitize_entry_path(target, &entry.path().map_err(map_decode)?)?;
         match entry.header().entry_type() {
             EntryType::Directory => {
-                fs::create_dir_all(&path).map_err(map_io)?;
+                create_dir_all_guarded(target, &path, guard)?;
             }
             EntryType::Regular | EntryType::Continuous => {
-                if let Some(parent) = path.parent() {
-                    fs::create_dir_all(parent).map_err(map_io)?;
-                }
-                let mut out = File::create(&path).map_err(map_io)?;
-                copy_entry(&mut entry, &mut out)?;
-                out_bytes += entry.header().size().map_err(map_decode)?;
+                let mut out = create_file_guarded(target, &path, guard)?;
+                copy_guarded(&mut entry, &mut out, guard, map_decode)?;
             }
             EntryType::Symlink => {
                 let link_target = entry
@@ -309,15 +310,20 @@ fn tar_extract<R: Read>(
                     .map_err(map_decode)?
                     .ok_or(SquashError::CorruptArchive)?
                     .into_owned();
-                // Validate BEFORE creating: the job aborts on escape.
+                // Parents first so target validation resolves against the
+                // real tree; the job aborts on escape.
+                if let Some(parent) = path.parent() {
+                    create_dir_all_guarded(target, parent, guard)?;
+                }
                 sanitize_link_target(target, &path, &link_target)?;
                 #[cfg(unix)]
                 {
-                    if let Some(parent) = path.parent() {
-                        fs::create_dir_all(parent).map_err(map_io)?;
-                    }
+                    let fresh = !path.exists();
                     let _ = fs::remove_file(&path);
                     std::os::unix::fs::symlink(&link_target, &path).map_err(map_io)?;
+                    if fresh {
+                        guard.track_created(path.clone());
+                    }
                 }
                 // Non-unix: skipped after validation (see zip handler note).
             }
@@ -328,20 +334,29 @@ fn tar_extract<R: Read>(
                     .map_err(map_decode)?
                     .ok_or(SquashError::CorruptArchive)?;
                 let source = sanitize_entry_path(target, &link)?;
+                // The source must not resolve through a planted or
+                // pre-existing symlink (platform `hard_link` behavior on
+                // symlink sources varies), and the destination gets the same
+                // no-symlink-ancestor guard as any file.
+                reject_symlink_components(target, &source)?;
                 if let Some(parent) = path.parent() {
-                    fs::create_dir_all(parent).map_err(map_io)?;
+                    create_dir_all_guarded(target, parent, guard)?;
                 }
+                let fresh = !path.exists();
                 fs::hard_link(&source, &path).map_err(map_io)?;
+                if fresh {
+                    guard.track_created(path.clone());
+                }
             }
             // Char/block devices, fifos, GNU sparse payloads: never
             // materialize special files from an archive.
             _ => {}
         }
         ctx.report(ProgressEvent::Advanced {
-            bytes_done: out_bytes,
+            bytes_done: guard.out_bytes(),
             entries_done: index as u64 + 1,
             current_path: path,
         });
     }
-    Ok(out_bytes)
+    Ok(())
 }

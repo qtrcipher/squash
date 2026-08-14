@@ -20,7 +20,9 @@ use crate::error::SquashError;
 use crate::format::{Format, FormatHandler, HandlerContext};
 use crate::layout::{extraction_target, EntryMeta};
 use crate::progress::{JobStats, ProgressEvent};
-use crate::safety::sanitize_entry_path;
+use crate::safety::{
+    create_dir_all_guarded, create_file_guarded, sanitize_entry_path, ExtractGuard,
+};
 use std::fs::{self, File};
 use std::io::Write;
 use std::path::{Path, PathBuf};
@@ -81,31 +83,66 @@ impl FormatHandler for RarHandler {
             return Err(SquashError::CorruptArchive);
         }
         let target = extraction_target(dest_dir, archive, Format::Rar, &meta);
+        let in_bytes = fs::metadata(archive).map(|m| m.len()).unwrap_or(0);
+        let mut guard = ExtractGuard::new(in_bytes);
+        let fresh_target = target != dest_dir && !target.exists();
         fs::create_dir_all(&target).map_err(map_io)?;
+        if fresh_target {
+            guard.track_created(target.clone());
+        }
 
-        // Pass 2: sanitized extraction.
+        // Pass 2: sanitized extraction. Any failure rolls back the partial
+        // output the job created.
+        let result = self.extract_entries(archive, &target, ctx, &mut guard);
+        match result {
+            Ok(()) => Ok(JobStats {
+                in_bytes,
+                out_bytes: guard.out_bytes(),
+                duration: start.elapsed(),
+            }),
+            Err(err) => {
+                guard.rollback();
+                Err(err)
+            }
+        }
+    }
+}
+
+impl RarHandler {
+    /// Pass 2 of extraction: stream every entry's bytes through the unrar
+    /// callback into guarded files, counting actual bytes against the bomb
+    /// guard (never the header's declared size).
+    fn extract_entries(
+        &self,
+        archive: &Path,
+        target: &Path,
+        ctx: &HandlerContext,
+        guard: &mut ExtractGuard,
+    ) -> Result<(), SquashError> {
         let mut reader = RarArchive::open_extract(archive).map_err(map_rar)?;
-        let mut out_bytes = 0u64;
         let mut entries_done = 0u64;
         while let Some(entry) = reader.next_entry().map_err(map_rar)? {
             ctx.check_cancelled()?;
-            let path = sanitize_entry_path(&target, &entry_path(&entry.name))?;
+            guard.record_entry()?;
+            let path = sanitize_entry_path(target, &entry_path(&entry.name))?;
             if entry.is_dir {
-                fs::create_dir_all(&path).map_err(map_io)?;
+                create_dir_all_guarded(target, &path, guard)?;
                 reader.skip_current().map_err(map_rar)?;
             } else {
                 if entry.is_encrypted {
                     return Err(SquashError::PasswordRequired);
                 }
-                if let Some(parent) = path.parent() {
-                    fs::create_dir_all(parent).map_err(map_io)?;
-                }
-                let mut out = File::create(&path).map_err(map_io)?;
-                // Write failures travel out through this slot; the callback
-                // aborts the decode and `ABORTED` re-raises the stored error.
+                let mut out = create_file_guarded(target, &path, guard)?;
+                // Guard/write failures travel out through this slot; the
+                // callback aborts the decode and `ABORTED` re-raises the
+                // stored error.
                 let mut inner: Option<SquashError> = None;
                 let decode = reader.extract_current(&mut |chunk: &[u8]| {
                     if inner.is_some() {
+                        return false;
+                    }
+                    if let Err(err) = guard.record_bytes(chunk.len() as u64) {
+                        inner = Some(err);
                         return false;
                     }
                     match out.write_all(chunk) {
@@ -120,21 +157,15 @@ impl FormatHandler for RarHandler {
                     return Err(err);
                 }
                 decode.map_err(map_rar)?;
-                out_bytes += entry.size;
             }
             entries_done += 1;
             ctx.report(ProgressEvent::Advanced {
-                bytes_done: out_bytes,
+                bytes_done: guard.out_bytes(),
                 entries_done,
                 current_path: path,
             });
         }
-
-        Ok(JobStats {
-            in_bytes: fs::metadata(archive).map(|m| m.len()).unwrap_or(0),
-            out_bytes,
-            duration: start.elapsed(),
-        })
+        Ok(())
     }
 }
 
