@@ -122,7 +122,7 @@ function runScenario(name) {
 
   console.log(`\n=== e2e scenario: ${name} (work: ${workDir}) ===`);
   const result = spawnSync(
-    "npx",
+    npxCmd,
     ["wdio", "run", path.join(here, "wdio.conf.js"), "--spec", path.join(here, "specs", `${name}.spec.js`)],
     {
       cwd: appDir,
@@ -152,7 +152,7 @@ const args = process.argv.slice(2);
 const skipBuild = args.includes("--skip-build");
 if (!skipBuild) {
   console.log("=== e2e build: frontend ===");
-  run("npm", ["run", "build"], { cwd: appDir });
+  run(npmCmd, ["run", "build"], { cwd: appDir });
   console.log("=== e2e build: squash-app (feature e2e) + squash-cli ===");
   // TAURI_CONFIG merges at compile time (tauri-codegen): the e2e build gets
   // `withGlobalTauri` so the service's window-focus checks hit a fast
