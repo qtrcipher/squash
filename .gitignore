@@ -41,6 +41,8 @@ benches/results.jsonl
 app/dist/
 app/dist-snapshots/
 app/snapshots-tmp/
+# E2E (WebdriverIO) run artifacts: failure/RTL screenshots stay out of git.
+app/e2e/artifacts/
 app/src-tauri/target/
 app/src-tauri/gen/
 *.tsbuildinfo

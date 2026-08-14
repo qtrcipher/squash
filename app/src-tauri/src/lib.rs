@@ -48,14 +48,20 @@ pub fn run() {
     // second launch forwards its argv here instead of opening a new window.
     let second_instance_state = Arc::clone(&app_state);
     let setup_state = Arc::clone(&app_state);
-    let app = tauri::Builder::default()
+    let builder = tauri::Builder::default()
         .plugin(tauri_plugin_single_instance::init(move |app, argv, cwd| {
             let paths = open::paths_from_argv(&argv, std::path::Path::new(&cwd));
             deliver_open_paths(app, &second_instance_state, paths);
         }))
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_opener::init())
-        .plugin(tauri_plugin_updater::Builder::new().build())
+        .plugin(tauri_plugin_updater::Builder::new().build());
+    // E2E builds only (cargo feature `e2e`): start the embedded WebDriver
+    // server (tauri-plugin-wdio-webdriver) so WebdriverIO can drive the real
+    // app. Release builds never carry it.
+    #[cfg(feature = "e2e")]
+    let builder = builder.plugin(tauri_plugin_wdio_webdriver::init());
+    let app = builder
         .manage(Arc::clone(&app_state))
         .manage(updater::UpdaterState::default())
         .setup(move |app| {

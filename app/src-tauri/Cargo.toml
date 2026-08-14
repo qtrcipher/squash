@@ -13,12 +13,22 @@ crate-type = ["staticlib", "cdylib", "rlib"]
 [build-dependencies]
 tauri-build = { version = "2", features = [] }
 
+[features]
+# E2E-only (app/e2e/, Phase 5 docs/05 §6): embeds a W3C WebDriver HTTP server
+# (tauri-plugin-wdio-webdriver) so WebdriverIO can drive the real built app.
+# Never enabled in release builds — the server is an automation backdoor.
+# `tauri/custom-protocol` is pulled in because plain `cargo build` otherwise
+# compiles a dev context that expects devUrl (vite) instead of embedding
+# frontendDist — the E2E binary must serve the real built frontend.
+e2e = ["dep:tauri-plugin-wdio-webdriver", "tauri/custom-protocol"]
+
 [dependencies]
 tauri = { version = "2", features = [] }
 tauri-plugin-dialog = "2"
 tauri-plugin-opener = "2"
 tauri-plugin-single-instance = "2"
 tauri-plugin-updater = "2"
+tauri-plugin-wdio-webdriver = { version = "1", optional = true }
 squash-core = { path = "../../crates/squash-core", features = ["crash-reporting"] }
 log = "0.4"
 serde.workspace = true

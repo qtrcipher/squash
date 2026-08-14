@@ -125,3 +125,74 @@ jobs:
             app/snapshots-ci/
             app/snapshots-tmp/diff-*.png
           if-no-files-found: ignore
+
+  # GUI E2E (Phase 5, docs/05 §6): the REAL built app driven via WebDriver —
+  # @wdio/tauri-service with the embedded provider (tauri-plugin-wdio-
+  # webdriver behind cargo feature `e2e`), so no external tauri-driver is
+  # needed and macOS works too (WKWebView has no standalone driver). Happy
+  # paths only: F1 launch → S1, F2 compress (+CLI round-trip), F3 extract,
+  # RTL dir/screenshot. Details: app/e2e/README.md.
+  e2e:
+    name: E2E (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 25
+    if: github.event_name == 'pull_request' || !contains(github.event.head_commit.message, '[ci skip]')
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-latest, ubuntu-latest, windows-latest]
+    defaults:
+      run:
+        working-directory: app
+    steps:
+      - uses: actions/checkout@v4
+
+      # Same Tauri deps as the rust job, plus Xvfb for the headless runner.
+      - name: Install Tauri Linux system dependencies + Xvfb
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libwebkit2gtk-4.1-dev \
+            libayatana-appindicator3-dev \
+            librsvg2-dev \
+            libssl-dev \
+            libxdo-dev \
+            patchelf \
+            xvfb
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache cargo
+        uses: Swatinem/rust-cache@v2
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: app/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      # The runner builds frontend + app (feature e2e) + CLI itself; Linux
+      # needs a virtual display for the WebKitGTK window.
+      - name: Run E2E scenarios
+        if: runner.os == 'Linux'
+        run: xvfb-run -a npm run test:e2e
+
+      - name: Run E2E scenarios
+        if: runner.os != 'Linux'
+        run: npm run test:e2e
+
+      # Failure screenshots + the RTL visual-check pair (app/e2e/artifacts/).
+      - name: Upload E2E artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2e-artifacts-${{ matrix.os }}
+          path: app/e2e/artifacts/
+          if-no-files-found: ignore
+

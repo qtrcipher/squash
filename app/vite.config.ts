@@ -20,6 +20,8 @@ export default defineConfig({
   },
   test: {
     environment: "node",
+    // app/e2e/specs/*.spec.js are WebdriverIO (mocha) specs, not vitest.
+    exclude: ["**/node_modules/**", "**/dist/**", "e2e/**"],
   },
   ...(snapshotMock && {
     resolve: {

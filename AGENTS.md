@@ -34,3 +34,17 @@ These override/extend the global `~/.claude/CLAUDE.md` for this repo.
   commit it from there (see `app/scripts/snapshots.mjs` header).
 - Review diffs like a designer: spacing, truncation, RTL mirroring, Arabic
   typography. Never re-baseline to make a diff go away without reading it.
+
+## GUI E2E testing (Phase 5, docs/05 §6)
+- `npm run test:e2e` (in `app/`) builds the real frontend + app + CLI and
+  runs WebdriverIO against the REAL app binary via the embedded WebDriver
+  server (`tauri-plugin-wdio-webdriver` behind the `e2e` cargo feature —
+  never in release builds). `npm run test:e2e:run` reuses existing binaries.
+  Why not raw tauri-driver, the argv native-dialog bypass, and the WKWebView
+  driver limitations: `app/e2e/README.md` — read it before touching specs.
+- One wdio run per scenario (fresh app launch, fresh store via the
+  `SQUASH_STORE_DIR` squash-core hook). Close any running Squash first —
+  single-instance would steal the test argv.
+- E2E is happy paths only; anything already covered by unit/integration/
+  snapshots stays out. Screenshots (failures + the RTL pair) land in
+  `app/e2e/artifacts/` (gitignored, uploaded by the CI `e2e` job).

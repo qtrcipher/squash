@@ -88,7 +88,20 @@ impl StoreDirs {
     /// Resolve via the `directories` crate (docs/06 §1): qualifier
     /// `dev.squash`, app `Squash` → macOS `~/Library/Application Support/
     /// dev.squash.Squash`, Linux `~/.config/squash`, etc.
+    ///
+    /// `SQUASH_STORE_DIR` overrides everything (config at `<root>/config`,
+    /// data at `<root>/data`): the E2E harness (`app/e2e/`) uses it to give
+    /// each scenario a throwaway store, so tests never touch real user
+    /// settings — same spirit as the `SQUASH_EXTRACT_*` overrides.
     pub fn resolve() -> Option<Self> {
+        if let Some(root) = std::env::var_os("SQUASH_STORE_DIR") {
+            let root = PathBuf::from(root);
+            return Some(Self {
+                config_dir: root.join("config"),
+                data_dir: root.join("data"),
+                log_dir: root.join("data").join("logs"),
+            });
+        }
         let dirs = directories::ProjectDirs::from("dev.squash", "", "Squash")?;
         Some(Self {
             config_dir: dirs.config_dir().to_path_buf(),
@@ -180,6 +193,19 @@ mod tests {
         assert!(dirs.config_dir.is_absolute());
         assert!(dirs.data_dir.is_absolute());
         assert_eq!(dirs.log_dir, dirs.data_dir.join("logs"));
+    }
+
+    #[test]
+    fn store_dir_env_override_redirects_everything() {
+        let tmp = tempfile::tempdir().unwrap();
+        // SAFETY-free but racy in parallel tests: only resolve() reads the
+        // var, and the sibling assertions stay true under an absolute root.
+        std::env::set_var("SQUASH_STORE_DIR", tmp.path());
+        let dirs = StoreDirs::resolve().unwrap();
+        std::env::remove_var("SQUASH_STORE_DIR");
+        assert_eq!(dirs.config_dir, tmp.path().join("config"));
+        assert_eq!(dirs.data_dir, tmp.path().join("data"));
+        assert_eq!(dirs.log_dir, tmp.path().join("data").join("logs"));
     }
 
     #[test]
